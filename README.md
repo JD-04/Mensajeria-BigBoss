@@ -34,13 +34,13 @@ docker run -d -p 80:80 \
 ## Acceso a la Aplicación
 
 - Cliente (usuarios):  
-  - http://127.0.0.1  
-  - http://localhost
+  - http://127.0.0.1:8080  
+  - http://localhost:8080
   - https://dary0842.duckdns.org/ (web)
 
 - Panel Administrador:  
-  - http://127.0.0.1/admin-template/admin.html  
-  - http://localhost/admin-template/admin.html
+  - http://127.0.0.1:8080/admin-template/admin.html  
+  - http://localhost:8080/admin-template/admin.html
   - https://dary0842.duckdns.org/api/admin.html (web)
 
 Credenciales iniciales del admin (se generan si no existe el archivo):
