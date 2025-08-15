@@ -1,0 +1,3048 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mensajería Web - Plataforma</title>
+  <link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet" />
+  <style>
+    /* Fuente y reset */
+    * {
+      box-sizing: border-box;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%; /* Asegura que body y html ocupen el 100% de la altura de la ventana */
+      font-family: 'Minecraftia', sans-serif;
+      background: #000; /* Fondo sólido para asegurar visibilidad si el canvas falla */
+      color: #ffffff; /* Color principal del texto */
+      overflow-x: hidden; /* Evita scroll horizontal */
+    }
+
+    /* Fondo canvas */
+    #fondoCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0; /* Asegura que esté detrás de todo */
+    }
+
+    /* Nuevo contenedor para centrar el login con Flexbox */
+    #loginWrapper {
+      position: fixed; /* Fijo en la ventana */
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex; /* Usa Flexbox para centrar */
+      justify-content: center; /* Centra horizontalmente */
+      align-items: center; /* Centra verticalmente */
+      z-index: 1000; /* Asegura que esté encima de todo */
+      background: rgba(0, 0, 0, 0.7); /* Fondo semi-transparente para oscurecer el fondo */
+    }
+
+    /* Login modal */
+    #loginModal {
+      background: #111; /* Fondo oscuro como los contenidos */
+      border: 2px solid #0ff; /* Borde como los contenidos */
+      box-shadow: 0 0 30px #00fff7; /* Sombra como los contenidos */
+      border-radius: 20px; /* Bordes redondeados */
+      padding: 30px 40px; /* Más amplio */
+      width: 600px; /* Más amplio para la imagen y nuevos campos */
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px; /* Espaciado entre elementos */
+      color: #eee;
+      animation: fadeInZoom 0.8s forwards; /* Animación de entrada */
+    }
+    #loginModal .modal-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    #loginModal .modal-header img {
+        max-width: 150px; /* Tamaño de la imagen */
+        height: auto;
+        margin-bottom: 10px;
+        image-rendering: pixelated;
+    }
+    /* Clase para ocultar el logo */
+    #loginModal .modal-header img.hide-logo {
+        display: none;
+    }
+    #loginModal .modal-header h2 {
+      margin: 0;
+      font-size: 2.2rem; /* Más grande */
+      background: linear-gradient(to right, #00fff7, #ff00c8); /* Gradiente como el header */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px #00fff7, 0 0 30px #ff00c8; /* Sombra de texto */
+      user-select: none;
+      animation: fadeInZoom 2s ease-in-out; /* Animación de entrada */
+    }
+    #loginModal input {
+      width: 100%;
+      padding: 18px; /* Más padding */
+      font-size: 1.2rem; /* Más grande */
+      border-radius: 12px; /* Bordes redondeados */
+      border: 2px solid #ff00c8; /* Borde como los inputs del diseño original */
+      background-color: #111; /* Fondo oscuro */
+      color: #fff; /* Color de texto */
+      font-family: 'Minecraftia', sans-serif;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #loginModal input:focus {
+      outline: none;
+      border-color: #00fff7; /* Borde al enfocar */
+      box-shadow: 0 0 15px #00fff7; /* Sombra al enfocar */
+    }
+    #loginModal button {
+      width: 100%;
+      padding: 18px; /* Más padding */
+      font-size: 1.3rem; /* Más grande */
+      font-weight: bold;
+      border-radius: 12px; /* Bordes redondeados */
+      border: none;
+      cursor: pointer;
+      font-family: 'Minecraftia', sans-serif;
+      background-color: #ff00c8; /* Color de botón principal */
+      color: #000;
+      box-shadow: 0 0 20px #ff00c8; /* Sombra del botón */
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+    }
+    #loginModal button:hover {
+      background-color: #00fff7; /* Color al pasar el ratón */
+      color: #000;
+      box-shadow: 0 0 20px #00fff7; /* Sombra al pasar el ratón */
+    }
+    #loginModal .switch-mode, #loginModal .forgot-password {
+      font-size: 1.1rem; /* Más grande */
+      color: #ccc;
+      user-select: none;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: 10px;
+      transition: color 0.3s ease;
+    }
+    #loginModal .switch-mode:hover, #loginModal .forgot-password:hover {
+      color: #00fff7;
+    }
+    #loginModal .error {
+      color: #ff4466;
+      font-weight: bold;
+      user-select: none;
+      text-align: center;
+    }
+    /* Estilos para deshabilitar inputs y botones cuando hay sesión activa */
+    #loginModal.logged-in input,
+    #loginModal.logged-in button,
+    #loginModal.logged-in .switch-mode,
+    #loginModal.logged-in .forgot-password {
+        opacity: 0.5;
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+
+    /* Recovery steps */
+    .recovery-step {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .recovery-step.active {
+        display: flex;
+    }
+    .recovery-step .back-button {
+        background-color: #6c757d;
+        color: #fff;
+        box-shadow: 0 0 10px #6c757d;
+    }
+    .recovery-step .back-button:hover {
+        background-color: #5a6268;
+        box-shadow: 0 0 15px #5a6268;
+    }
+
+
+    /* Contenido principal (oculto hasta login) */
+    #mainContent {
+      display: none; /* Asegura que esté oculto por defecto */
+      position: relative;
+      z-index: 1;
+      max-width: 1400px; /* AUMENTADO para que sea más amplio */
+      margin: 80px auto 40px auto; /* Margen superior para dejar espacio a la nav fija */
+      background: #111; /* Fondo como el .content original */
+      border-radius: 20px; /* Bordes redondeados */
+      border: 2px solid #0ff; /* Borde como el .content original */
+      box-shadow: 0 0 30px #00fff7; /* Sombra como el .content original */
+      opacity: 0;
+      transform: scale(0.8);
+      animation: fadeInZoom 0.8s forwards; /* Animación de entrada */
+      color: #ccc;
+    }
+
+    /* Navegación - Copiado de Web-Desing.txt */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      max-width: 1400px; /* Limita el ancho máximo de la barra */
+      left: 50%; /* Mueve el inicio al 50% del ancho de la pantalla */
+      transform: translateX(-50%); /* Compensa el 50% del ancho de la barra para centrarla */
+      background-color: rgba(0, 0, 0, 0.9);
+      border-bottom: 2px solid #00fff7;
+      padding: 20px 0;
+      z-index: 999;
+      display: flex;
+      justify-content: center;
+      gap: 20px; /* Reducido de 40px a 20px */
+      box-shadow: 0 0 20px #00fff7;
+      user-select: none;
+      overflow-x: auto; /* Para permitir scroll si hay muchos elementos */
+      white-space: nowrap; /* Evita que los elementos se envuelvan */
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 15px; /* Reducido de 20px a 15px */
+      border: 2px solid transparent;
+      border-radius: 10px;
+      transition: 0.3s ease-in-out;
+      cursor: pointer;
+      font-size: 1rem; /* Reducido de 1.1rem a 1rem */
+      font-family: 'Minecraftia', sans-serif;
+      background: none;
+      text-transform: none;
+      font-weight: normal;
+      flex-shrink: 0; /* Evita que los elementos se encojan */
+    }
+    nav a.active, nav a:hover {
+      background-color: #ff00c8;
+      box-shadow: 0 0 10px #ff00c8;
+      color: #000;
+      border-color: #ff00c8;
+      text-shadow: none;
+    }
+    /* Estilo para el botón de cerrar sesión */
+    #logoutButton {
+        background-color: #ff4466; /* Color rojo para cerrar sesión */
+        color: #fff;
+        border: 2px solid #ff4466;
+        box-shadow: 0 0 10px #ff4466;
+    }
+    #logoutButton:hover {
+        background-color: #cc0033;
+        box-shadow: 0 0 15px #cc0033;
+    }
+
+    /* Contenedor de música */
+    #musicPlayerContainer {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: #111;
+        border: 2px solid #00fff7;
+        box-shadow: 0 0 20px #00fff7;
+        border-radius: 15px;
+        padding: 10px 15px;
+    }
+
+    #musicPlayerContainer button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease, box-shadow 0.3s ease;
+        border-radius: 8px;
+    }
+
+    #musicPlayerContainer button:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 10px #ff00c8;
+    }
+
+    #musicPlayerContainer button svg {
+        width: 28px; /* Tamaño del icono */
+        height: 28px;
+        fill: #00fff7; /* Color del icono */
+        transition: fill 0.3s ease;
+    }
+
+    #musicPlayerContainer button:hover svg {
+        fill: #ff00c8; /* Color del icono al pasar el ratón */
+    }
+
+
+    /* Secciones de contenido */
+    .content { /* Clase para todas las secciones de contenido */
+      max-width: 1200px; /* AUMENTADO para que sea más amplio */
+      margin: 40px auto; /* Margen como el .content original */
+      padding: 30px; /* Padding como el .content original */
+      background: #111; /* Fondo como el .content original */
+      border-radius: 20px; /* Bordes redondeados */
+      border: 2px solid #0ff; /* Borde como el .content original */
+      box-shadow: 0 0 30px #00fff7; /* Sombra como el .content original */
+      opacity: 0;
+      transform: scale(0.8);
+      animation: fadeInZoom 0.8s forwards; /* Animación de entrada */
+      color: #ccc;
+      display: none; /* Ocultar por defecto */
+    }
+    .content.active {
+      display: block;
+    }
+
+    header { /* Estilos para el header principal "Certificados SSL" */
+      text-align: center;
+      padding: 100px 30px 40px; /* Padding como el header original */
+      margin-top: 60px; /* Margen superior como el header original */
+      font-size: 3rem;
+      background: linear-gradient(to right, #00fff7, #ff00c8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px #00fff7, 0 0 30px #ff00c8;
+      animation: fadeInZoom 2s ease-in-out;
+      font-weight: normal;
+      user-select: none;
+    }
+    h2 {
+      color: #ff00c8;
+      margin-bottom: 25px; /* Espacio como el diseño original */
+      text-align: center;
+      font-size: 2rem;
+      font-weight: normal;
+      user-select: none;
+    }
+    p {
+      text-align: justify;
+      line-height: 1.7;
+      color: #ccc;
+      font-size: 1.2rem; /* Tamaño de fuente como el diseño original */
+      user-select: text;
+      margin-bottom: 20px;
+    }
+
+    /* Mensajes públicos */
+    #mensajesPublicos form {
+      margin-top: 30px; /* Margen superior como el diseño original */
+      display: flex;
+      flex-direction: column; /* Columnas para inputs */
+      gap: 20px; /* Espaciado entre inputs */
+      max-width: 100%; /* Ajustado a 100% para que ocupe el ancho del .content */
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      flex-wrap: nowrap; /* Evita que se envuelvan */
+    }
+    #mensajesPublicos input[type="text"] {
+      padding: 18px; /* Padding como el diseño original */
+      border-radius: 12px; /* Bordes redondeados */
+      border: 2px solid #ff00c8; /* Borde como el diseño original */
+      background-color: #111; /* Fondo oscuro */
+      color: #fff; /* Color de texto */
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1.2rem; /* Tamaño de fuente como el diseño original */
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 48px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #mensajesPublicos input[type="text"]:focus {
+      outline: none;
+      border-color: #00fff7;
+      box-shadow: 0 0 12px #00fff7;
+    }
+    #mensajesPublicos button {
+      padding: 18px; /* Padding como el diseño original */
+      background-color: #ff00c8; /* Color de botón principal */
+      border: none;
+      border-radius: 12px; /* Bordes redondeados */
+      color: #000;
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1.3rem; /* Tamaño de fuente como el diseño original */
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      width: 100%;
+      box-shadow: 0 0 20px #ff00c8; /* Sombra del botón */
+    }
+    #mensajesPublicos button:hover {
+      background-color: #00fff7; /* Color al pasar el ratón */
+      color: #000;
+      box-shadow: 0 0 20px #00fff7; /* Sombra al pasar el ratón */
+    }
+    #mensajesPublicos table {
+      width: 100%; /* Ajustado a 100% para que ocupe el ancho del .content */
+      margin: 20px auto 0 auto; /* Margen como el diseño original */
+      border-collapse: collapse;
+      background: #111; /* Fondo oscuro */
+      box-shadow: 0 0 25px #ff00c8;
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 1rem;
+      color: #ccc;
+      user-select: text;
+    }
+    #mensajesPublicos th, #mensajesPublicos td {
+      padding: 15px 20px; /* Padding como el diseño original */
+      border-bottom: 1px solid #444; /* Borde inferior */
+      text-align: left;
+      vertical-align: middle;
+    }
+    #mensajesPublicos th {
+      background-color: #ff00c8; /* Fondo como el diseño original */
+      color: #000;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      font-size: 1.1rem; /* Tamaño de fuente como el diseño original */
+    }
+    #mensajesPublicos tr:hover {
+      background-color: #222; /* Fondo al pasar el ratón */
+      cursor: default;
+    }
+    #mensajesPublicos .btn-eliminar {
+      background-color: #ff00c8; /* Color de botón principal */
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      cursor: pointer;
+      padding: 6px 12px;
+      font-family: 'Minecraftia', sans-serif;
+      font-weight: bold;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+    }
+    #mensajesPublicos .btn-eliminar:hover {
+      background-color: #00fff7; /* Color al pasar el ratón */
+      color: #000;
+    }
+
+    /* Estilos para el botón de mostrar/ocultar historial */
+    #togglePublicMessages {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background-color: #00fff7;
+        color: #000;
+        border: none;
+        border-radius: 12px;
+        font-family: 'Minecraftia', sans-serif;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        box-shadow: 0 0 15px #00fff7;
+        display: block; /* Para que ocupe su propia línea */
+        margin-left: auto;
+        margin-right: auto;
+    }
+    #togglePublicMessages:hover {
+        background-color: #ff00c8;
+        box-shadow: 0 0 15px #ff00c8;
+    }
+    #publicMessagesTableContainer {
+        display: block; /* Por defecto visible */
+        transition: all 0.3s ease-in-out;
+        overflow: hidden; /* Para que la animación de altura funcione */
+    }
+    #publicMessagesTableContainer.hidden {
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+        opacity: 0;
+    }
+
+
+    /* Separador */
+    hr {
+      margin: 30px auto; /* Centrar y dar margen */
+      border: 1px solid #ff00c8;
+      opacity: 0.3;
+      width: 100%;
+    }
+
+    /* Buscador usuarios para chat */
+    #buscarUsuariosContenedor {
+      margin-top: 30px; /* Margen superior */
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #buscarUsuariosContenedor input {
+      width: 90%;           /* Ocupa el 90% del contenedor */
+      max-width: 700px;     /* No se extiende más allá de 700px */
+      display: block;       /* Asegura que se comporte como bloque */
+      margin: 0 auto;       /* Centrado horizontal */
+      padding: 18px;
+      border-radius: 12px;
+      border: 2px solid #ff00c8;
+      background-color: #111;
+      color: #eee;
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1.2rem;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: text;
+    }
+    #buscarUsuariosContenedor input:focus {
+      outline: none;
+      border-color: #00fff7;
+      box-shadow: 0 0 15px #00fff7;
+    }
+    #listaUsuarios {
+      max-height: 200px; /* Más alto */
+      overflow-y: auto;
+      background: #1a1a1a; /* Fondo como las opinion-card */
+      border: 2px solid #00fff7; /* Borde como las opinion-card */
+      border-radius: 15px; /* Bordes redondeados */
+      box-shadow: 0 0 15px #00fff7; /* Sombra como las opinion-card */
+      color: #ccc;
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1.1rem; /* Tamaño de fuente */
+      user-select: none;
+      margin-top: 15px; /* Espacio superior */
+    }
+    #listaUsuarios div {
+      padding: 12px 18px; /* Más padding */
+      cursor: pointer;
+      border-bottom: 1px solid #444;
+      transition: background-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+    }
+    #listaUsuarios div:last-child {
+      border-bottom: none;
+    }
+    #listaUsuarios div:hover {
+      background-color: #ff00c8; /* Fondo al hover */
+      color: #000;
+      font-weight: bold;
+      box-shadow: 0 0 10px #ff00c8; /* Sombra al hover */
+    }
+
+    /* Chat privado (VENTANA MODAL COMPLETA) */
+    #chatPrivado {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8); /* Fondo oscuro para el overlay */
+      display: flex; /* Usar flexbox para centrar el contenido */
+      justify-content: center; /* Centrar horizontalmente */
+      align-items: center; /* Centrar verticalmente */
+      z-index: 2000; /* Muy alto para estar por encima de todo */
+      opacity: 0; /* Inicialmente invisible */
+      visibility: hidden; /* Oculto para que no ocupe espacio ni sea interactuable */
+      transition: opacity 0.3s ease, visibility 0.3s ease; /* Transición suave */
+    }
+    #chatPrivado.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Contenido real del chat dentro del modal */
+    #chatPrivado .chat-content-wrapper {
+        background: #111; /* Fondo oscuro como los contenidos */
+        border: 2px solid #0ff; /* Borde como los contenidos */
+        box-shadow: 0 0 30px #00fff7; /* Sombra como los contenidos */
+        border-radius: 20px; /* Bordes redondeados */
+        width: 80vw; /* Ocupa el 80% del ancho de la ventana */
+        height: 90vh; /* Ocupa el 90% de la altura de la ventana */
+        max-width: 900px; /* Ancho máximo */
+        max-height: 700px; /* Altura máxima */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Para que los bordes redondeados se apliquen bien */
+        /* Eliminamos la animación fadeInZoom de aquí para evitar doble animación */
+    }
+
+    #chatPrivado header {
+      background: linear-gradient(to right, #00fff7, #ff00c8); /* Gradiente como el header principal */
+      color: #000;
+      padding: 15px 20px; /* Más padding */
+      font-weight: bold;
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1.3rem; /* Más grande */
+      cursor: grab;
+      user-select: none;
+      display: flex;
+      justify-content: space-between; /* Para separar el título de los botones */
+      align-items: center;
+      /* Aseguramos que los bordes redondeados del header coincidan con el wrapper */
+      border-top-left-radius: 18px;
+      border-top-right-radius: 18px;
+      margin: 0; /* Asegura que no haya margen superior */
+      position: relative; /* Para posicionar los botones absolutos */
+    }
+    #chatPrivado header #chatTitulo {
+        flex-grow: 1; /* Permite que el título ocupe el espacio central */
+        text-align: center;
+    }
+
+    #chatPrivado header .header-buttons {
+        display: flex;
+        gap: 10px; /* Espacio entre los botones */
+        position: absolute; /* Posicionamiento absoluto */
+        right: 15px; /* A la derecha */
+        top: 50%; /* Centrado verticalmente */
+        transform: translateY(-50%); /* Ajuste fino para centrado vertical */
+    }
+
+    #chatPrivado header .cerrar {
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.5rem; /* Más grande */
+      padding: 0 8px;
+      user-select: none;
+      transition: color 0.3s ease;
+      /* Estilos para el icono SVG */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px; /* Tamaño del área del botón */
+      height: 30px;
+      border-radius: 50%; /* Hacerlo circular */
+      background-color: rgba(0,0,0,0.2); /* Fondo sutil */
+    }
+    #chatPrivado header .cerrar:hover {
+      color: #ff00c8; /* Color al pasar el ratón */
+      background-color: rgba(0,0,0,0.4);
+    }
+    #chatPrivado header .cerrar svg {
+        width: 20px; /* Tamaño del icono SVG */
+        height: 20px;
+        fill: #fff; /* Color del icono */
+        transition: fill 0.3s ease;
+    }
+    #chatPrivado header .cerrar:hover svg {
+        fill: #ff00c8; /* Color del icono al pasar el ratón */
+    }
+
+    /* Nuevo botón de eliminar chat completo */
+    #chatPrivado header .btn-eliminar-chat-completo {
+        background-color: #ff4466; /* Color rojo para eliminar */
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        padding: 8px 15px;
+        font-family: 'Minecraftia', sans-serif;
+        font-size: 0.9rem;
+        font-weight: bold;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        display: flex; /* Para alinear el icono y el texto */
+        align-items: center;
+        gap: 5px; /* Espacio entre icono y texto */
+    }
+    #chatPrivado header .btn-eliminar-chat-completo:hover {
+        background-color: #cc0033;
+        box-shadow: 0 0 10px #cc0033;
+    }
+    #chatPrivado header .btn-eliminar-chat-completo svg {
+        width: 18px; /* Tamaño del icono de basura */
+        height: 18px;
+        fill: #fff; /* Color del icono */
+    }
+
+
+    #chatPrivado #chatMensajes {
+      background: #0d0d0d; /* Fondo más oscuro para el área de chat */
+      color: #eee;
+      flex-grow: 1;
+      padding: 15px; /* Más padding */
+      overflow-y: auto;
+      font-size: 1rem; /* Tamaño de fuente */
+      line-height: 1.5; /* Espaciado de línea */
+      font-family: 'Minecraftia', sans-serif; /* Misma fuente */
+      user-select: text;
+      display: flex; /* Para alinear mensajes */
+      flex-direction: column; /* Para que los mensajes se apilen */
+    }
+    #chatPrivado #chatMensajes > div {
+      margin-bottom: 10px; /* Espacio entre mensajes */
+      padding: 10px 15px; /* Padding de los mensajes */
+      border-radius: 15px; /* Bordes redondeados */
+      max-width: 80%; /* Ancho máximo del mensaje */
+      word-wrap: break-word;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3); /* Sombra ligera para mensajes */
+      display: flex; /* Para alinear contenido y botón de eliminar */
+      justify-content: space-between; /* Para empujar el botón a la derecha */
+      align-items: center; /* Centrar verticalmente */
+    }
+    #chatPrivado #chatMensajes > div .message-content {
+        flex-grow: 1; /* Permite que el contenido del mensaje ocupe el espacio disponible */
+    }
+    /* Eliminado el estilo para .btn-eliminar-chat ya que se elimina el botón individual */
+
+
+    #chatPrivado #chatMensajes > div.sent { /* Mensajes enviados por el usuario */
+      background: linear-gradient(to right, #00fff7, #ff00c8); /* Gradiente */
+      color: #000;
+      margin-left: auto; /* Alineado a la derecha */
+      border-bottom-right-radius: 5px; /* Esquina inferior derecha más cuadrada */
+    }
+    #chatPrivado #chatMensajes > div.received { /* Mensajes recibidos */
+      background-color: #333; /* Fondo oscuro */
+      color: #eee;
+      margin-right: auto; /* Alineado a la izquierda */
+      border-bottom-left-radius: 5px; /* Esquina inferior izquierda más cuadrada */
+    }
+    #chatPrivado #chatInputForm {
+      display: flex;
+      border-top: 2px solid #00fff7; /* Borde superior */
+      padding: 10px 15px; /* Padding */
+      gap: 10px; /* Espaciado */
+      background: #111; /* Fondo oscuro */
+      border-bottom-left-radius: 18px; /* Ajustar bordes */
+      border-bottom-right-radius: 18px;
+    }
+    #chatPrivado #chatInput {
+      flex-grow: 1;
+      border-radius: 12px; /* Bordes redondeados */
+      border: 2px solid #ff00c8; /* Borde como los inputs */
+      padding: 12px 18px; /* Más padding */
+      background: #222; /* Fondo ligeramente más claro */
+      color: #eee;
+      font-family: 'Minecraftia', sans-serif; /* Misma fuente */
+      font-size: 1.1rem; /* Tamaño de fuente */
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #chatPrivado #chatInput:focus {
+      outline: none;
+      border-color: #00fff7;
+      box-shadow: 0 0 15px #00fff7;
+    }
+    #chatPrivado button {
+      border: none;
+      border-radius: 12px; /* Bordes redondeados */
+      background: #ff00c8; /* Color de botón principal */
+      color: #000;
+      font-weight: bold;
+      font-family: 'Minecraftia', sans-serif; /* Misma fuente */
+      font-size: 1.1rem; /* Tamaño de fuente */
+      cursor: pointer;
+      padding: 12px 20px; /* Más padding */
+      user-select: none;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 0 10px #ff00c8; /* Sombra del botón */
+    }
+    #chatPrivado button:hover {
+      background: #00fff7; /* Color al pasar el ratón */
+      color: #000;
+      box-shadow: 0 0 10px #00fff7; /* Sombra al pasar el ratón */
+    }
+
+    /* Scrollbars personalizados */
+    ::-webkit-scrollbar {
+      width: 10px; /* Más ancho */
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111;
+      border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ff00c8;
+      border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00fff7;
+    }
+
+    @keyframes fadeInZoom {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* Estilos para la notificación de nuevo mensaje */
+    #notificationContainer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2001; /* Por encima del chat privado */
+      display: none; /* Oculto por defecto */
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-notification {
+      background: #111; /* Fondo oscuro como los contenidos */
+      border: 2px solid #00fff7; /* Borde como los contenidos */
+      box-shadow: 0 0 20px #00fff7; /* Sombra como los contenidos */
+      border-radius: 15px;
+      padding: 15px 20px;
+      color: #eee;
+      font-family: 'Minecraftia', sans-serif;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
+      transform: translateX(100%); /* Para animación de entrada */
+      opacity: 0;
+    }
+
+    .message-notification.show {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .message-notification:hover {
+      box-shadow: 0 0 30px #ff00c8; /* Sombra al pasar el ratón */
+      border-color: #ff00c8;
+    }
+
+    .message-notification .icon {
+      width: 24px;
+      height: 24px;
+      fill: #00fff7; /* Color del icono */
+    }
+
+    .message-notification .close-notification {
+      margin-left: auto;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #ff4466;
+      cursor: pointer;
+      transition: color 0.3s ease;
+    }
+
+    .message-notification .close-notification:hover {
+      color: #cc0033;
+    }
+
+    /* Estilos para la introducción tipo videojuego */
+    #gameIntro {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 3000; /* Por encima de todo */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #eee;
+        font-family: 'Minecraftia', sans-serif;
+        text-align: center;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    #gameIntro .character-container {
+        margin-bottom: 0; /* Eliminar margen inferior */
+        display: flex;
+        align-items: flex-start; /* Alinear la parte superior del personaje con el contenedor */
+        justify-content: center;
+        width: 100%;
+        max-width: 700px;
+        position: relative; /* Para posicionar la imagen de forma absoluta dentro */
+    }
+
+    #gameIntro .character-image {
+        width: 120px; /* Tamaño del personaje */
+        height: 120px;
+        position: absolute; /* Posicionamiento absoluto */
+        top: 0; /* Fija la imagen en la parte superior del contenedor */
+        left: 0; /* Ajustar según sea necesario para el posicionamiento */
+        /* Las imágenes se definirán en JS para alternar */
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: top center; /* Alinea la imagen a la parte superior */
+        image-rendering: pixelated; /* Para mantener el estilo pixelado */
+        /* margin-right: 20px; */ /* Eliminado, el diálogo se posicionará con margin-left */
+        transition: background-image 0.1s ease-in-out; /* Transición suave para el cambio de imagen */
+    }
+
+    #gameIntro .dialogue-box {
+        background: #111;
+        border: 2px solid #00fff7;
+        box-shadow: 0 0 30px #00fff7;
+        border-radius: 15px;
+        padding: 25px 35px;
+        max-width: 700px;
+        width: 90%;
+        font-size: 1.5rem;
+        line-height: 1.6;
+        text-align: left; /* Alinea el texto a la izquierda dentro del cuadro */
+        position: relative;
+        min-height: 100px; /* Altura mínima para el cuadro de diálogo */
+        display: flex;
+        align-items: center; /* Centra verticalmente el texto */
+        margin-left: 140px; /* Espacio para el personaje + un poco más */
+        margin-top: 20px; /* Ajustar para que el cuadro de diálogo esté a la altura de la boca */
+    }
+
+    /* Cola del cuadro de diálogo */
+    #gameIntro .dialogue-box::before {
+        content: '';
+        position: absolute;
+        left: -20px; /* Posicionar a la izquierda del cuadro de diálogo */
+        top: 30px; /* Ajustar para que apunte a la boca del personaje */
+        width: 0;
+        height: 0;
+        border-top: 10px solid transparent;
+        border-bottom: 10px solid transparent;
+        border-right: 20px solid #111; /* Color del fondo del cuadro de diálogo */
+        filter: drop-shadow(-2px 0px 0px #00fff7); /* Sombra para el borde */
+    }
+
+    /* Animación de texto letra por letra */
+    .typewriter-text {
+        overflow: hidden; /* Oculta el texto que aún no ha aparecido */
+        white-space: pre-wrap; /* Mantiene los saltos de línea y espacios */
+        /* La animación de width se controla por JS para la aparición letra a letra */
+    }
+
+    /* Estilos para la sección de Contacto y Mis Solicitudes */
+    .form-group {
+        margin-bottom: 20px;
+        width: 100%;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 1.1rem;
+        color: #00fff7;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group textarea {
+        width: 100%;
+        padding: 15px;
+        border-radius: 10px;
+        border: 2px solid #ff00c8;
+        background-color: #111;
+        color: #fff;
+        font-family: 'Minecraftia', sans-serif;
+        font-size: 1.1rem;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        box-sizing: border-box; /* Asegura que padding y border estén incluidos en el ancho */
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group input[type="email"]:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #00fff7;
+        box-shadow: 0 0 12px #00fff7;
+    }
+
+    .form-group textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .status-message {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .status-message.success {
+        background-color: #28a745;
+        color: #fff;
+    }
+    .status-message.error {
+        background-color: #dc3545;
+        color: #fff;
+    }
+    .status-message.info {
+        background-color: #007bff;
+        color: #fff;
+    }
+
+    /* Estilos para la tabla de Mis Solicitudes - Copiado de Web-Desing.txt .admin-content-section table */
+    #mis-solicitudes table {
+      width: 100%;
+      margin: 20px auto 0 auto;
+      border-collapse: collapse;
+      background: #111;
+      box-shadow: 0 0 25px #ff00c8;
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 1rem;
+      color: #ccc;
+      user-select: text;
+    }
+    #mis-solicitudes th, #mis-solicitudes td {
+      padding: 15px 20px;
+      border-bottom: 1px solid #444;
+      vertical-align: middle;
+    }
+    /* Alineación de la primera columna a la izquierda, como en admin */
+    #mis-solicitudes th:first-child,
+    #mis-solicitudes td:first-child {
+        text-align: left;
+    }
+    #mis-solicitudes th {
+      background-color: #ff00c8;
+      color: #000;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      font-size: 1.1rem;
+    }
+    #mis-solicitudes tr:hover {
+      background-color: #222;
+      cursor: default;
+    }
+    #mis-solicitudes .estado-pendiente {
+        color: #ffc107; /* Amarillo */
+        font-weight: bold;
+    }
+    #mis-solicitudes .estado-aprobada {
+        color: #28a745; /* Verde */
+        font-weight: bold;
+    }
+    #mis-solicitudes .estado-rechazada {
+        color: #dc3545; /* Rojo */
+        font-weight: bold;
+    }
+    #mis-solicitudes .respuesta-admin {
+        background-color: #333;
+        border-left: 3px solid #00fff7;
+        padding: 8px;
+        margin-top: 5px;
+        font-style: italic;
+        color: #eee;
+    }
+
+    /* Estilo para el botón de enviar solicitud en Contáctanos */
+    #formContacto button[type="submit"] {
+      padding: 18px;
+      font-size: 1.3rem;
+      font-weight: bold;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Minecraftia', sans-serif;
+      background-color: #ff00c8;
+      color: #000;
+      box-shadow: 0 0 20px #ff00c8;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      width: 100%; /* Asegura que ocupe el ancho completo del formulario */
+      max-width: 100%; /* Asegura que no se desborde */
+    }
+    #formContacto button[type="submit"]:hover {
+      background-color: #00fff7;
+      color: #000;
+      box-shadow: 0 0 20px #00fff7;
+    }
+
+    /* Nuevo estilo para el diálogo de reglas de contraseña */
+    #passwordRulesDialogue, #passwordRulesDialogueReset {
+        position: fixed; /* Revertido a fixed */
+        top: 20px; /* Revertido a fixed */
+        right: 20px; /* Revertido a fixed */
+        background: #111;
+        border: 2px solid #0ff;
+        box-shadow: 0 0 30px #00fff7;
+        border-radius: 15px;
+        padding: 20px;
+        max-width: 350px; /* Ajustado para que no sea 100% de ancho */
+        width: auto; /* Ajustado para que el ancho se adapte al contenido */
+        margin-top: 0; /* Eliminado el margen superior */
+        z-index: 2000; /* Por encima de todo */
+        display: none; /* Oculto por defecto */
+        flex-direction: column;
+        gap: 10px;
+        font-family: 'Minecraftia', sans-serif;
+        color: #eee;
+    }
+    #passwordRulesDialogue ul, #passwordRulesDialogueReset ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    #passwordRulesDialogue li, #passwordRulesDialogueReset li {
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+    }
+    #passwordRulesDialogue li.valid, #passwordRulesDialogueReset li.valid {
+        color: #28a745;
+    }
+    #passwordRulesDialogue li.invalid, #passwordRulesDialogueReset li.invalid {
+        color: #dc3545;
+    }
+    #passwordRulesDialogue li::before, #passwordRulesDialogueReset li::before {
+        content: '•';
+        margin-right: 8px;
+        font-size: 1.2em;
+    }
+    #passwordRulesDialogue li.valid::before, #passwordRulesDialogueReset li.valid::before {
+        content: '✓';
+        color: #28a745;
+    }
+    #passwordRulesDialogue li.invalid::before, #passwordRulesDialogueReset li.invalid::before {
+        content: '✗';
+        color: #dc3545;
+    }
+    /* weak-password-toggle ahora está fuera del diálogo, por lo que estos estilos ya no se aplican directamente a él */
+    /* #passwordRulesDialogue .weak-password-toggle, #passwordRulesDialogueReset .weak-password-toggle {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+    }
+    #passwordRulesDialogue .weak-password-toggle input[type="checkbox"], #passwordRulesDialogueReset .weak-password-toggle input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        transform: scale(1.2);
+        cursor: pointer;
+    } */
+
+    /* Nuevo estilo para el checkbox de contraseña débil, ahora fuera del diálogo */
+    .weak-password-toggle {
+        margin-top: 10px; /* Espacio entre el input de contraseña y el checkbox */
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        color: #ccc; /* Color de texto para el label */
+        font-size: 0.9rem; /* Tamaño de fuente ajustado */
+        font-family: 'Minecraftia', sans-serif;
+        user-select: none;
+    }
+    .weak-password-toggle input[type="checkbox"] {
+        width: 16px; /* Tamaño del checkbox */
+        height: 16px;
+        appearance: none; /* Eliminar estilo por defecto del navegador */
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        border: 2px solid #ff00c8; /* Borde como los inputs */
+        border-radius: 4px; /* Bordes ligeramente redondeados */
+        background-color: #111; /* Fondo oscuro */
+        cursor: pointer;
+        position: relative;
+        flex-shrink: 0; /* Evitar que se encoja */
+    }
+    .weak-password-toggle input[type="checkbox"]:checked {
+        background-color: #00fff7; /* Fondo cuando está marcado */
+        border-color: #00fff7;
+    }
+    .weak-password-toggle input[type="checkbox"]:checked::after {
+        content: '✓'; /* Icono de check */
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #000; /* Color del check */
+        font-size: 12px; /* Tamaño del check */
+        line-height: 1;
+    }
+    .weak-password-toggle input[type="checkbox"]:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 255, 247, 0.5); /* Sombra al enfocar */
+    }
+    .weak-password-toggle span {
+        white-space: nowrap; /* Evita que el texto se divida en varias líneas */
+    }
+
+
+/* Nuevo estilo para checkbox cuadrado (Permitir contraseña débil) */
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  appearance: none;
+  width: 20px; /* Cambiado de 22px para ser más consistente con el otro checkbox */
+  height: 20px; /* Cambiado de 22px para ser más consistente con el otro checkbox */
+  border: 2px solid #ff00c8;
+  background-color: #111;
+  cursor: pointer;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked {
+  background-color: #00fff7;
+  border-color: #00fff7;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  color: #000;
+  font-weight: bold;
+  font-size: 14px; /* Ajustado para el nuevo tamaño */
+  top: 25%;
+  left: 25%;
+  transform: translate(-25%, -30%);
+}
+
+.checkbox-wrapper label {
+  font-size: 1rem;
+  color: #ccc;
+  user-select: none;
+}
+
+
+/* Fuerza el estilo cuadrado para el checkbox de contraseña débil */
+/* Se eliminó 'all: unset;' para permitir que los estilos del .checkbox-wrapper se apliquen */
+/* Ocultar los checkboxes originales */
+#dialogueAllowWeakPassword,
+#dialogueAllowWeakPasswordReset {
+  display: none;
+}
+
+#dialogueAllowWeakPasswordReset + label .custom-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ff00c8;
+  background-color: #111;
+  cursor: pointer;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+#dialogueAllowWeakPasswordReset:checked + label .custom-checkbox {
+  background-color: #00fff7;
+  border-color: #00fff7;
+}
+
+#dialogueAllowWeakPasswordReset:checked + label .custom-checkbox::after {
+  content: "✓";
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  font-size: 12px;
+  color: #ff00c8;
+}
+
+/* Estilo del cuadrado */
+.custom-checkbox {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ff00c8;
+  background-color: #111;
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+/* Mostrar el check cuando está marcado */
+#dialogueAllowWeakPassword:checked + label .custom-checkbox::after {
+  content: "✓";
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  font-size: 12px;
+  color: #ff00c8;
+}
+
+
+#dialogueAllowWeakPassword:checked + label .custom-checkbox{
+  background-color: #00fff7;
+  border-color: #00fff7;
+}
+
+#dialogueAllowWeakPassword:checked::after {
+  content: '✓';
+  position: absolute;
+  color: #000;
+  font-weight: bold;
+  font-size: 14px; /* Ajustado para el nuevo tamaño */
+  top: 25%;
+  left: 25%;
+  transform: translate(-25%, -30%);
+}
+
+/* Estilos para el checkbox de contraseña débil en el modo de restablecimiento */
+.weak-password-toggle input[type="checkbox"] {
+    width: 10px; /* Ajustado a 20px para que sea un cuadrado */
+    height: 10px; /* Ajustado a 20px para que sea un cuadrado */
+    /* Resto de estilos se mantienen o se heredan */
+}
+
+</style>
+</head>
+<body>
+
+  <canvas id="fondoCanvas"></canvas>
+
+  <!-- Nuevo contenedor para centrar el Login Modal -->
+  <div id="loginWrapper">
+    <!-- Login Modal -->
+    <div id="loginModal">
+      <div class="modal-header">
+        <img src="images/message-g.gif" alt="Logo Mensajería Web">
+        <h2>Mensajería Web</h2>
+      </div>
+
+      <!-- Login/Registro Step -->
+      <div id="loginRegisterStep" class="recovery-step active">
+        <input type="text" id="loginUsuario" placeholder="Usuario" autocomplete="username" />
+        <input type="email" id="registerEmail" placeholder="Email (solo para registro)" autocomplete="email" style="display:none;" />
+        <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="new-password" />
+
+        <!-- Checkbox de contraseña débil - MOVIDO AQUÍ, fuera del diálogo -->
+        <div class="checkbox-wrapper" id="allowWeakPasswordContainer" style="display:flex; align-items:center; gap:10px;">
+  <input type="checkbox" id="dialogueAllowWeakPassword" name="dialogueAllowWeakPassword" />
+  <label for="dialogueAllowWeakPassword">
+    <span class="custom-checkbox"></span>
+    Permitir contraseña débil
+  </label>
+</div>
+
+        <button id="btnLogin">Entrar</button>
+        <div class="switch-mode" id="switchRegister">Crear cuenta</div>
+        <div class="forgot-password" id="forgotPassword">¿Olvidaste tu contraseña?</div>
+        <div class="error" id="loginError"></div>
+      </div>
+
+      <!-- Request Recovery Code Step -->
+      <div id="requestRecoveryStep" class="recovery-step">
+        <h3>Recuperar Contraseña</h3>
+        <input type="email" id="recoveryEmail" placeholder="Tu email registrado" autocomplete="email" />
+        <button id="btnRequestRecoveryCode">Solicitar Código</button>
+        <button class="back-button" id="backToLoginFromRequest">Volver al Login</button>
+        <div class="error" id="recoveryError"></div>
+      </div>
+
+      <!-- Verify Code Step -->
+      <div id="verifyCodeStep" class="recovery-step">
+        <h3>Verificar Código</h3>
+        <p>Introduce el código de 6 dígitos enviado a <span id="displayRecoveryEmail" style="font-weight:bold;"></span></p>
+        <input type="text" id="recoveryCodeInput" placeholder="Código de 6 dígitos" maxlength="6" />
+        <button id="btnVerifyCode">Verificar Código</button>
+        <button class="back-button" id="backToRequestFromVerify">Volver</button>
+        <div class="error" id="verifyCodeError"></div>
+      </div>
+
+      <!-- Reset Password Step -->
+      <div id="resetPasswordStep" class="recovery-step">
+        <h3>Restablecer Contraseña</h3>
+        <p>Usuario: <span id="displayResetUser" style="font-weight:bold;"></span></p>
+        <input type="password" id="newPasswordInput" placeholder="Nueva Contraseña" autocomplete="new-password" />
+        <input type="password" id="confirmNewPasswordInput" placeholder="Confirmar Nueva Contraseña" autocomplete="new-password" />
+
+        <!-- Checkbox de contraseña débil para reset - MOVIDO AQUÍ, fuera del diálogo -->
+       <div class="checkbox-wrapper" id="allowWeakPasswordResetContainer">
+  <input type="checkbox" id="dialogueAllowWeakPasswordReset" name="dialogueAllowWeakPasswordReset" />
+  <label for="dialogueAllowWeakPasswordReset">
+    <span class="custom-checkbox"></span>
+    Permitir contraseña débil
+  </label>
+</div>
+        <button id="btnResetPassword">Restablecer Contraseña</button>
+        <div class="error" id="resetPasswordError"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Diálogo de reglas de contraseña (estilo videojuego) - MOVIDO AQUÍ, fuera del loginModal -->
+  <div id="passwordRulesDialogue" class="password-rules-dialogue-register">
+      <h3>Requisitos de Contraseña</h3>
+      <ul id="dialoguePasswordRules">
+          <li id="dialogueRuleLength">Mínimo 8 caracteres</li>
+          <li id="dialogueRuleLowercase">Al menos una minúscula</li>
+          <li id="dialogueRuleUppercase">Al menos una mayúscula</li>
+          <li id="dialogueRuleNumber">Al menos un número</li>
+          <li id="dialogueRuleSpecial">Al menos un carácter especial (!@#$%^&*)</li>
+      </ul>
+  </div>
+
+  <!-- Diálogo de reglas de contraseña (estilo videojuego) para reset password - MOVIDO AQUÍ, fuera del loginModal -->
+  <div id="passwordRulesDialogueReset" class="password-rules-dialogue-reset">
+      <h3>Requisitos de Contraseña</h3>
+      <ul id="dialoguePasswordRulesReset">
+          <li id="dialogueRuleLengthReset">Mínimo 8 caracteres</li>
+          <li id="dialogueRuleLowercaseReset">Al menos una minúscula</li>
+          <li id="dialogueRuleUppercaseReset">Al menos una mayúscula</li>
+          <li id="dialogueRuleNumberReset">Al menos un número</li>
+          <li id="dialogueRuleSpecialReset">Al menos un carácter especial (!@#$%^&*)</li>
+      </ul>
+  </div>
+
+  <!-- Introducción tipo videojuego (oculta por defecto) -->
+  <div id="gameIntro" style="display: none;">
+    <div class="character-container">
+        <div class="character-image" id="characterImage"></div>
+        <div class="dialogue-box">
+            <span id="dialogueText"></span>
+        </div>
+    </div>
+  </div>
+
+  <!-- Contenido principal -->
+  <div id="mainContent" aria-live="polite" aria-atomic="true" role="main">
+
+    <nav aria-label="Navegación principal">
+      <a class="tab-link active" data-section="que-somos" onclick="showTab('que-somos')">¿Qué somos?</a>
+      <a class="tab-link" data-section="origen" onclick="showTab('origen')">Origen</a>
+      <a class="tab-link" data-section="importancia" onclick="showTab('importancia')">Importancia</a>
+      <a class="tab-link" data-section="funcionamiento" onclick="showTab('funcionamiento')">Funcionamiento</a>
+      <a class="tab-link" data-section="mensajes" onclick="showTab('mensajes')">Mensajes</a>
+      <a class="tab-link" data-section="contactanos" onclick="showTab('contactanos')">Contáctanos</a>
+      <a class="tab-link" data-section="mis-solicitudes" onclick="showTab('mis-solicitudes')">Mis Solicitudes</a>
+      <a class="tab-link" id="logoutButton" style="display: none;">Cerrar Sesión</a>
+    </nav>
+
+    <header>Mensajería Web</header> <!-- Header principal cambiado -->
+
+    <div id="que-somos" class="content active">
+      <h2>¿Qué somos?</h2>
+      <p>Somos una plataforma de mensajería web diseñada para conectar personas de manera instantánea y segura. Nuestra misión es facilitar la comunicación fluida, permitiendo a los usuarios enviar mensajes públicos a una comunidad o establecer conversaciones privadas con contactos específicos.</p>
+      <p>En un mundo cada vez más interconectado, ofrecemos un espacio donde tus palabras viajan rápido y llegan a su destino, ya sea para compartir ideas con todos o para mantener diálogos íntimos y personales.</p>
+    </div>
+
+    <div id="origen" class="content">
+      <h2>Origen de la Idea</h2>
+      <p>La idea de esta mensajería web surgió de la necesidad de crear un espacio de comunicación simple, directo y sin las complejidades de las grandes redes sociales. Inspirados en la inmediatez de los primeros sistemas de chat y la transparencia de los foros públicos, buscamos un equilibrio que permitiera tanto la difusión de mensajes a una audiencia amplia como la privacidad de las conversaciones uno a uno.</p>
+      <p>Nuestra visión es volver a lo esencial de la mensajería: conectar a las personas a través de texto, de forma eficiente y con un enfoque en la experiencia del usuario.</p>
+    </div>
+
+    <div id="importancia" class="content">
+      <h2>Importancia de la Mensajería Web</h2>
+      <p>La mensajería web es crucial en la era digital. Permite la interacción en tiempo real, superando barreras geográficas y temporales. Para individuos, es una herramienta esencial para mantenerse en contacto con amigos y familiares. Para comunidades, facilita la coordinación y el intercambio de información de interés común.</p>
+      <p>Además, en un entorno donde la información fluye constantemente, una plataforma de mensajería confiable y accesible es fundamental para la colaboración, el aprendizaje y el simple acto de compartir pensamientos y experiencias.</p>
+    </div>
+
+    <div id="funcionamiento" class="content">
+      <h2>Funcionamiento de Nuestra Mensajería</h2>
+      <p>Nuestra plataforma opera bajo un modelo sencillo: al iniciar sesión, accedes a un panel donde puedes interactuar de dos maneras principales. Primero, puedes enviar mensajes públicos que serán visibles para todos los usuarios en el historial compartido. Estos mensajes son ideales para anuncios, saludos generales o cualquier información que desees compartir con la comunidad.</p>
+      <p>Segundo, y de forma más privada, puedes buscar a otros usuarios registrados para iniciar un chat individual. Una vez que seleccionas a un usuario, se abre una ventana de conversación donde solo tú y esa persona pueden ver los mensajes intercambiados, garantizando la confidencialidad de vuestras comunicaciones.</p>
+    </div>
+
+    <div id="mensajes" class="content">
+      <h2>Mensajes Públicos y Chat Privado</h2>
+
+      <div id="mensajesPublicos">
+        <form id="formMensajePublico">
+          <input type="text" id="nombrePublico" placeholder="Tu nombre" autocomplete="off" required />
+          <input type="text" id="mensajePublico" placeholder="Tu mensaje público" autocomplete="off" required />
+          <button type="submit">Enviar Mensaje</button>
+        </form>
+
+        <button id="togglePublicMessages">Ocultar Historial</button>
+
+        <div id="publicMessagesTableContainer">
+            <table>
+              <thead>
+                <tr><th>ID</th><th>Nombre</th><th>Mensaje</th><th>Eliminar</th></tr>
+              </thead>
+              <tbody id="tbodyPublico"></tbody>
+            </table>
+        </div>
+      </div>
+
+      <hr />
+
+      <div id="chatPrivadoContenedor">
+        <div id="buscarUsuariosContenedor">
+          <input type="text" id="buscarUsuarios" placeholder="Buscar usuario para chat privado..." autocomplete="off" />
+          <div id="listaUsuarios"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nueva Sección: Contáctanos -->
+    <div id="contactanos" class="content">
+        <h2>Contáctanos</h2>
+        <p>Envía un mensaje al administrador. Nos pondremos en contacto contigo lo antes posible.</p>
+        <form id="formContacto">
+            <div class="form-group">
+                <label for="contactUsuario">Tu Usuario:</label>
+                <input type="text" id="contactUsuario" readonly />
+            </div>
+            <div class="form-group">
+                <label for="contactEmail">Tu Email:</label>
+                <input type="email" id="contactEmail" placeholder="ejemplo@dominio.com" required />
+            </div>
+            <div class="form-group">
+                <label for="contactMensaje">Tu Mensaje:</label>
+                <textarea id="contactMensaje" placeholder="Escribe tu mensaje aquí..." required></textarea>
+            </div>
+            <button type="submit">Enviar Solicitud</button>
+            <div class="status-message" id="contactStatus"></div>
+        </form>
+    </div>
+
+    <!-- Nueva Sección: Mis Solicitudes -->
+    <div id="mis-solicitudes" class="content">
+        <h2>Mis Solicitudes Enviadas</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Email</th>
+                    <th>Mensaje</th>
+                    <th>Estado</th>
+                    <th>Respuesta del Admin</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyMisSolicitudes">
+                <tr><td colspan="6" style="text-align:center; color:#ccc;">Cargando solicitudes...</td></tr>
+            </tbody>
+        </table>
+        <div class="status-message" id="misSolicitudesStatus"></div>
+    </div>
+
+  </div>
+
+  <!-- Chat privado flotante (ahora un modal de pantalla completa) -->
+  <div id="chatPrivado" aria-live="polite" aria-atomic="true" role="dialog" aria-modal="true" aria-label="Chat privado con usuario">
+    <div class="chat-content-wrapper"> <!-- Contenedor para el contenido visual del chat -->
+        <header>
+            <div id="chatTitulo">Chat privado</div>
+            <div class="header-buttons">
+                <!-- Nuevo botón para eliminar todo el chat -->
+                <button class="btn-eliminar-chat-completo" id="btnEliminarChatCompleto" title="Eliminar chat completo">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+                <div class="cerrar" tabindex="0" role="button" aria-label="Cerrar chat privado">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </div>
+            </div>
+        </header>
+        <div id="chatMensajes" tabindex="0" aria-live="polite" aria-atomic="true"></div>
+        <form id="chatInputForm">
+            <input type="text" id="chatInput" autocomplete="off" placeholder="Escribe tu mensaje..." required />
+            <button type="submit">Enviar</button>
+        </form>
+    </div>
+  </div>
+
+  <!-- Contenedor para notificaciones de mensajes -->
+  <div id="notificationContainer">
+    <!-- Las notificaciones se insertarán aquí dinámicamente -->
+  </div>
+
+  <!-- Contenedor del reproductor de música -->
+  <div id="musicPlayerContainer">
+    <button id="muteToggleBtn" aria-label="Alternar silencio">
+        <svg id="volumeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+    </button>
+    <button id="nextSongBtn" aria-label="Siguiente canción">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M6 18l8.5-6L6 6v12zm9-12v12h2V6h-2z"/>
+        </svg>
+    </button>
+  </div>
+
+  <script>
+    // --- CONFIGURACIÓN DE LA API ---
+    const API_BASE_URL = '/api';
+    let currentUser = null; // Variable para almacenar el usuario logueado
+    let userToken = null; // Variable para almacenar el token del usuario logueado
+    let chatPollingInterval = null; // Variable para almacenar el ID del intervalo de polling del chat
+    let notificationPollingInterval = null; // Intervalo para el polling de notificaciones
+    const notificationContainer = document.getElementById('notificationContainer');
+    const activeNotifications = new Map(); // Map<remitente, HTMLElement> para gestionar notificaciones activas
+
+
+    // --- FONDO POLÍGONOS ANIMADO CON CURSOR ---
+    (() => {
+      const canvas = document.getElementById('fondoCanvas');
+      const ctx = canvas.getContext('2d');
+      let width, height;
+      let points = [];
+      const POINTS_COUNT = 80; // Aumentado para más polígonos
+      const MAX_DISTANCE = 150;
+      const CURSOR_RADIUS = 120;
+      const cursor = { x: null, y: null };
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      class Point {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.vx = (Math.random() - 0.5) * 0.7; // Velocidad ligeramente mayor
+          this.vy = (Math.random() - 0.5) * 0.7;
+          this.connections = [];
+        }
+        move() {
+          this.x += this.vx;
+          this.y += this.vy;
+          if (this.x < 0 || this.x > width) this.vx *= -1;
+          if (this.y < 0 || this.y > height) this.vy *= -1;
+        }
+        distTo(other) {
+          return Math.hypot(this.x - other.x, this.y - other.y);
+        }
+      }
+
+      function initPoints() {
+        points = [];
+        for (let i = 0; i < POINTS_COUNT; i++) {
+          points.push(new Point(Math.random() * width, Math.random() * height));
+        }
+      }
+      initPoints();
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        // Dibuja conexiones
+        for (let i = 0; i < POINTS_COUNT; i++) {
+          const p1 = points[i];
+          p1.move();
+          p1.connections = [];
+          for (let j = i + 1; j < POINTS_COUNT; j++) {
+            const p2 = points[j];
+            const dist = p1.distTo(p2);
+            if (dist < MAX_DISTANCE) {
+              p1.connections.push(p2);
+              const alpha = 1 - dist / MAX_DISTANCE;
+              ctx.strokeStyle = `rgba(255, 0, 200, ${alpha * 0.6})`; // Más notable
+              ctx.lineWidth = 1.5; // Más grueso
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Dibuja puntos
+        points.forEach(p => {
+          ctx.fillStyle = '#00fff7'; // Color diferente para los puntos
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI); // Más grandes
+          ctx.fill();
+        });
+
+        // Dibuja líneas al cursor
+        if (cursor.x !== null && cursor.y !== null) {
+          points.forEach(p => {
+            const dist = Math.hypot(p.x - cursor.x, p.y - cursor.y);
+            if (dist < CURSOR_RADIUS) {
+              const alpha = 1 - dist / CURSOR_RADIUS;
+              ctx.strokeStyle = `rgba(0, 255, 247, ${alpha * 0.8})`; // Más notable
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(cursor.x, cursor.y);
+              ctx.stroke();
+            }
+          });
+        }
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+
+      window.addEventListener('mousemove', e => {
+        cursor.x = e.clientX;
+        cursor.y = e.clientY;
+      });
+      window.addEventListener('mouseout', () => {
+        cursor.x = null;
+        cursor.y = null;
+      });
+    })();
+
+    // --- NAVEGACIÓN ENTRE SECCIONES ---
+    function showTab(id) {
+      const contents = document.querySelectorAll('.content');
+      const links = document.querySelectorAll('.tab-link');
+
+      // Ocultar todos los contenidos
+      contents.forEach(c => c.style.display = 'none');
+      links.forEach(l => l.classList.remove('active'));
+
+      // Mostrar solo el contenido activo
+      const activeContent = document.getElementById(id);
+      if (activeContent) {
+        activeContent.style.display = 'block';
+        activeContent.classList.add('active');
+      }
+      // Activar el enlace de la pestaña correspondiente
+      const activeLink = document.querySelector(`nav .tab-link[data-section="${id}"]`);
+      if (activeLink) {
+          activeLink.classList.add('active');
+      }
+
+      // Si la pestaña de mensajes está activa, cargar mensajes públicos y usuarios para chat
+      if (id === 'mensajes' && currentUser) {
+        cargarMensajesPublicos();
+        cargarUsuariosParaChat();
+      } else if (id === 'contactanos' && currentUser) {
+        document.getElementById('contactUsuario').value = currentUser;
+        document.getElementById('contactEmail').value = ''; // Limpiar email
+        document.getElementById('contactMensaje').value = ''; // Limpiar mensaje
+        displayStatus(document.getElementById('contactStatus'), '', ''); // Limpiar estado
+      } else if (id === 'mis-solicitudes' && currentUser) {
+        cargarMisSolicitudes();
+      }
+    }
+
+    const navLinks = document.querySelectorAll('nav .tab-link');
+    navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        const targetId = link.getAttribute('data-section');
+        showTab(targetId);
+      });
+    });
+
+
+    // --- LOGIN & REGISTRO & RECUPERACIÓN DE CONTRASEÑA ---
+    const loginWrapper = document.getElementById('loginWrapper');
+    const loginModal = document.getElementById('loginModal');
+    const btnLogin = document.getElementById('btnLogin');
+    const inputUsuario = document.getElementById('loginUsuario');
+    const inputPassword = document.getElementById('loginPassword');
+    const registerEmailInput = document.getElementById('registerEmail');
+    const loginError = document.getElementById('loginError');
+    const switchRegister = document.getElementById('switchRegister');
+    const forgotPasswordLink = document.getElementById('forgotPassword');
+    const logoutButton = document.getElementById('logoutButton');
+    const modalHeaderImg = loginModal.querySelector('.modal-header img');
+
+    const loginRegisterStep = document.getElementById('loginRegisterStep');
+    const requestRecoveryStep = document.getElementById('requestRecoveryStep');
+    const verifyCodeStep = document.getElementById('verifyCodeStep');
+    const resetPasswordStep = document.getElementById('resetPasswordStep');
+
+    const recoveryEmailInput = document.getElementById('recoveryEmail');
+    const btnRequestRecoveryCode = document.getElementById('btnRequestRecoveryCode');
+    const displayRecoveryEmailSpan = document.getElementById('displayRecoveryEmail');
+    const recoveryCodeInput = document.getElementById('recoveryCodeInput');
+    const btnVerifyCode = document.getElementById('btnVerifyCode');
+    const displayResetUserSpan = document.getElementById('displayResetUser');
+    const newPasswordInput = document.getElementById('newPasswordInput');
+    const confirmNewPasswordInput = document.getElementById('confirmNewPasswordInput');
+    const btnResetPassword = document.getElementById('btnResetPassword');
+    const recoveryErrorDiv = document.getElementById('recoveryError');
+    const verifyCodeErrorDiv = document.getElementById('verifyCodeError');
+    const resetPasswordErrorDiv = document.getElementById('resetPasswordError');
+
+    const backToLoginFromRequestBtn = document.getElementById('backToLoginFromRequest');
+    const backToRequestFromVerifyBtn = document.getElementById('backToRequestFromVerify');
+
+    // Elementos del diálogo de reglas de contraseña para registro
+    const passwordRulesDialogue = document.getElementById('passwordRulesDialogue');
+    const dialoguePasswordRules = document.getElementById('dialoguePasswordRules');
+    const dialogueRuleLength = document.getElementById('dialogueRuleLength');
+    const dialogueRuleLowercase = document.getElementById('dialogueRuleLowercase');
+    const dialogueRuleUppercase = document.getElementById('dialogueRuleUppercase');
+    const dialogueRuleNumber = document.getElementById('dialogueRuleNumber');
+    const dialogueRuleSpecial = document.getElementById('dialogueRuleSpecial');
+    const dialogueAllowWeakPasswordCheckbox = document.getElementById('dialogueAllowWeakPassword');
+
+    // Elementos del diálogo de reglas de contraseña para restablecimiento
+    const passwordRulesDialogueReset = document.getElementById('passwordRulesDialogueReset');
+    const dialoguePasswordRulesReset = document.getElementById('dialoguePasswordRulesReset');
+    const dialogueRuleLengthReset = document.getElementById('dialogueRuleLengthReset');
+    const dialogueRuleLowercaseReset = document.getElementById('dialogueRuleLowercaseReset');
+    const dialogueRuleUppercaseReset = document.getElementById('dialogueRuleUppercaseReset');
+    const dialogueRuleNumberReset = document.getElementById('dialogueRuleNumberReset');
+    const dialogueRuleSpecialReset = document.getElementById('dialogueRuleSpecialReset');
+    const dialogueAllowWeakPasswordResetCheckbox = document.getElementById('dialogueAllowWeakPasswordReset');
+
+
+    let modoRegistro = false;
+    let currentRecoveryEmail = '';
+    let currentRecoveryUser = '';
+
+    function showStep(stepElement) {
+        const steps = [loginRegisterStep, requestRecoveryStep, verifyCodeStep, resetPasswordStep];
+        steps.forEach(step => step.classList.remove('active'));
+        stepElement.classList.add('active');
+        loginError.textContent = ''; // Clear general login error
+        recoveryErrorDiv.textContent = ''; // Clear recovery errors
+        verifyCodeErrorDiv.textContent = '';
+        resetPasswordErrorDiv.textContent = '';
+
+        // Ocultar/mostrar logo
+        if (stepElement === loginRegisterStep && !modoRegistro) { // Solo mostrar logo en el login principal
+            modalHeaderImg.classList.remove('hide-logo');
+        } else {
+            modalHeaderImg.classList.add('hide-logo');
+        }
+
+        // Ocultar ambos diálogos de reglas de contraseña al cambiar de paso
+        passwordRulesDialogue.style.display = 'none';
+        passwordRulesDialogueReset.style.display = 'none';
+
+        // Controlar la visibilidad del checkbox de contraseña débil en el login/registro
+        if (stepElement === loginRegisterStep && modoRegistro) {
+            dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'flex';
+        } else {
+            dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'none';
+        }
+    }
+
+    // Función para actualizar el estado de la UI (mostrar/ocultar login, nav, etc.)
+    function updateUIForLoginState() {
+        if (currentUser && userToken) {
+            loginWrapper.style.display = 'none';
+            logoutButton.style.display = 'inline-block';
+            document.getElementById('nombrePublico').value = currentUser;
+            document.getElementById('nombrePublico').readOnly = true;
+            loginModal.classList.add('logged-in');
+            loginError.textContent = `Bienvenido, ${currentUser}`;
+            startNotificationPolling();
+            showGameIntro();
+        } else {
+            document.getElementById('mainContent').style.display = 'none';
+            loginWrapper.style.display = 'flex';
+            logoutButton.style.display = 'none';
+            document.getElementById('nombrePublico').value = '';
+            document.getElementById('nombrePublico').readOnly = false;
+            cerrarChat();
+            showStep(loginRegisterStep); // Go back to login/register step
+            registerEmailInput.style.display = 'none'; // Hide email for login
+            btnLogin.textContent = 'Entrar';
+            switchRegister.textContent = 'Crear cuenta';
+            inputUsuario.value = '';
+            inputPassword.value = '';
+            loginError.textContent = '';
+            modoRegistro = false;
+            loginModal.classList.remove('logged-in');
+            stopNotificationPolling();
+            dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'none'; // Asegurarse de que esté oculto al cerrar sesión
+        }
+    }
+
+    // Cargar sesión al iniciar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        const storedUser = localStorage.getItem('currentUser');
+        const storedToken = localStorage.getItem('userToken');
+        if (storedUser && storedToken) {
+            currentUser = storedUser;
+            userToken = storedToken;
+            document.getElementById('mainContent').style.display = 'block';
+            logoutButton.style.display = 'inline-block';
+            document.getElementById('nombrePublico').value = currentUser;
+            document.getElementById('nombrePublico').readOnly = true;
+            showTab('que-somos');
+            loginModal.classList.add('logged-in');
+            loginError.textContent = `Bienvenido, ${currentUser}`;
+            startNotificationPolling();
+            loginWrapper.style.display = 'none';
+        } else {
+            showStep(loginRegisterStep); // Asegurarse de que el logo se muestre al cargar la página en el login inicial
+            dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'none'; // Asegurarse de que esté oculto al cargar la página
+        }
+    });
+
+    switchRegister.addEventListener('click', () => {
+      if (currentUser) {
+          loginError.textContent = 'Cierra sesión para crear o iniciar sesión con otra cuenta.';
+          return;
+      }
+      modoRegistro = !modoRegistro;
+      if (modoRegistro) {
+        loginModal.querySelector('.modal-header h2').textContent = 'Crear Cuenta';
+        btnLogin.textContent = 'Registrar';
+        switchRegister.textContent = '¿Ya tienes cuenta? Inicia sesión';
+        forgotPasswordLink.style.display = 'none'; // Hide forgot password in register mode
+        registerEmailInput.style.display = 'block'; // Show email for registration
+        inputUsuario.value = '';
+        inputPassword.value = '';
+        registerEmailInput.value = '';
+        dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'flex'; // Mostrar el checkbox
+        showStep(loginRegisterStep); // Actualizar la vista
+      } else {
+        loginModal.querySelector('.modal-header h2').textContent = 'Iniciar Sesión';
+        btnLogin.textContent = 'Entrar';
+        switchRegister.textContent = 'Crear cuenta';
+        forgotPasswordLink.style.display = 'block'; // Show forgot password in login mode
+        registerEmailInput.style.display = 'none'; // Hide email for login
+        inputUsuario.value = '';
+        inputPassword.value = '';
+        dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'none'; // Ocultar el checkbox
+        showStep(loginRegisterStep); // Actualizar la vista
+      }
+    });
+
+    // Password validation logic
+    function validatePassword(password, isWeakAllowed) {
+        const minLength = isWeakAllowed ? 4 : 8;
+        const rules = {
+            length: password.length >= minLength,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            number: /[0-9]/.test(password),
+            special: /[!@#$%^&*]/.test(password)
+        };
+
+        if (isWeakAllowed) {
+            return rules.length; // Only length matters for weak password
+        } else {
+            return rules.length && rules.lowercase && rules.uppercase && rules.number && rules.special;
+        }
+    }
+
+    function updatePasswordRulesDialogue(password, isWeakAllowed, isReset = false) {
+        const minLength = isWeakAllowed ? 4 : 8;
+
+        const rulesContainer = isReset ? dialoguePasswordRulesReset : dialoguePasswordRules;
+        const ruleLengthElement = isReset ? dialogueRuleLengthReset : dialogueRuleLength;
+        const ruleLowercaseElement = isReset ? dialogueRuleLowercaseReset : dialogueRuleLowercase;
+        const ruleUppercaseElement = isReset ? dialogueRuleUppercaseReset : dialogueRuleUppercase;
+        const ruleNumberElement = isReset ? dialogueRuleNumberReset : dialogueRuleNumber;
+        const ruleSpecialElement = isReset ? dialogueRuleSpecialReset : dialogueRuleSpecial;
+
+        ruleLengthElement.textContent = `Mínimo ${minLength} caracteres`;
+
+        const rules = {
+            length: password.length >= minLength,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            number: /[0-9]/.test(password),
+            special: /[!@#$%^&*]/.test(password)
+        };
+
+        const ruleElements = {
+            length: ruleLengthElement,
+            lowercase: ruleLowercaseElement,
+            uppercase: ruleUppercaseElement,
+            number: ruleNumberElement,
+            special: ruleSpecialElement
+        };
+
+        for (const rule in rules) {
+            if (ruleElements[rule]) {
+                ruleElements[rule].classList.toggle('valid', rules[rule]);
+                ruleElements[rule].classList.toggle('invalid', !rules[rule]);
+            }
+        }
+
+        // Hide/show specific rules for weak password
+        if (isWeakAllowed) {
+            ruleLowercaseElement.style.display = 'none';
+            ruleUppercaseElement.style.display = 'none';
+            ruleNumberElement.style.display = 'none';
+            ruleSpecialElement.style.display = 'none';
+        } else {
+            ruleLowercaseElement.style.display = 'flex';
+            ruleUppercaseElement.style.display = 'flex';
+            ruleNumberElement.style.display = 'flex';
+            ruleSpecialElement.style.display = 'flex';
+        }
+    }
+
+    // Event listeners para mostrar/ocultar y actualizar el diálogo de reglas (Registro)
+    inputPassword.addEventListener('focus', () => {
+        if (modoRegistro) {
+            passwordRulesDialogue.style.display = 'flex';
+            updatePasswordRulesDialogue(inputPassword.value, dialogueAllowWeakPasswordCheckbox.checked);
+        }
+    });
+    inputPassword.addEventListener('input', () => {
+        if (modoRegistro) {
+            updatePasswordRulesDialogue(inputPassword.value, dialogueAllowWeakPasswordCheckbox.checked);
+        }
+    });
+    inputPassword.addEventListener('blur', () => {
+        // Ocultar solo si el foco no se mueve al checkbox o a las reglas
+        setTimeout(() => { // Pequeño retraso para permitir que el foco se mueva al checkbox
+            if (!passwordRulesDialogue.contains(document.activeElement)) {
+                passwordRulesDialogue.style.display = 'none';
+            }
+        }, 100);
+    });
+
+    dialogueAllowWeakPasswordCheckbox.addEventListener('change', () => {
+        if (modoRegistro) {
+            updatePasswordRulesDialogue(inputPassword.value, dialogueAllowWeakPasswordCheckbox.checked);
+        }
+    });
+    // Mantener el diálogo visible si se hace clic dentro de él
+    passwordRulesDialogue.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Evita que el blur se dispare en el input de contraseña
+    });
+
+
+    // Event listeners para mostrar/ocultar y actualizar el diálogo de reglas (Restablecimiento)
+    newPasswordInput.addEventListener('focus', () => {
+        passwordRulesDialogueReset.style.display = 'flex';
+        updatePasswordRulesDialogue(newPasswordInput.value, dialogueAllowWeakPasswordResetCheckbox.checked, true);
+    });
+    newPasswordInput.addEventListener('input', () => {
+        updatePasswordRulesDialogue(newPasswordInput.value, dialogueAllowWeakPasswordResetCheckbox.checked, true);
+    });
+    newPasswordInput.addEventListener('blur', () => {
+        // Ocultar solo si el foco no se mueve al checkbox o a las reglas
+        setTimeout(() => { // Pequeño retraso para permitir que el foco se mueva al checkbox
+            if (!passwordRulesDialogueReset.contains(document.activeElement)) {
+                passwordRulesDialogueReset.style.display = 'none';
+            }
+        }, 100);
+    });
+
+    dialogueAllowWeakPasswordResetCheckbox.addEventListener('change', () => {
+        updatePasswordRulesDialogue(newPasswordInput.value, dialogueAllowWeakPasswordResetCheckbox.checked, true);
+    });
+    // Mantener el diálogo visible si se hace clic dentro de él
+    passwordRulesDialogueReset.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Evita que el blur se dispare en el input de contraseña
+    });
+
+
+    btnLogin.addEventListener('click', async () => {
+      if (currentUser) {
+          loginError.textContent = 'Ya hay una sesión activa. Cierra sesión para continuar.';
+          return;
+      }
+
+      const usuario = inputUsuario.value.trim();
+      const password = inputPassword.value.trim();
+      const email = registerEmailInput.value.trim();
+
+      if (!usuario || !password || (modoRegistro && !email)) {
+        loginError.textContent = 'Completa todos los campos.';
+        return;
+      }
+
+      if (modoRegistro) {
+          if (!validatePassword(password, dialogueAllowWeakPasswordCheckbox.checked)) {
+              loginError.textContent = 'La contraseña no cumple con los requisitos.';
+              return;
+          }
+      }
+
+      loginError.textContent = '';
+
+      try {
+        let url = modoRegistro ? `${API_BASE_URL}/usuarios/registro` : `${API_BASE_URL}/usuarios/login`;
+        let method = 'POST';
+        let bodyData = modoRegistro ? { usuario, password, email } : { usuario, password };
+
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bodyData),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          if (modoRegistro) {
+            loginError.textContent = data.mensaje;
+            // Reset to login mode after successful registration
+            modoRegistro = false;
+            loginModal.querySelector('.modal-header h2').textContent = 'Iniciar Sesión';
+            btnLogin.textContent = 'Entrar';
+            switchRegister.textContent = 'Crear cuenta';
+            forgotPasswordLink.style.display = 'block';
+            registerEmailInput.style.display = 'none';
+            inputUsuario.value = '';
+            inputPassword.value = '';
+            registerEmailInput.value = '';
+            dialogueAllowWeakPasswordCheckbox.parentElement.style.display = 'none'; // Ocultar el checkbox
+            showStep(loginRegisterStep); // Actualizar la vista
+          } else {
+            currentUser = data.usuario;
+            userToken = data.token;
+            localStorage.setItem('currentUser', currentUser);
+            localStorage.setItem('userToken', userToken);
+            updateUIForLoginState();
+          }
+        } else {
+          loginError.textContent = data.error || 'Error en la operación.';
+          console.error('Error API:', data.error);
+        }
+      } catch (error) {
+        loginError.textContent = 'Error de conexión con el servidor. Revisa la consola del navegador y del servidor.';
+        console.error('Error de red o API:', error);
+      }
+    });
+
+    logoutButton.addEventListener('click', async () => {
+        if (!currentUser || !userToken) {
+            console.warn('Intento de cerrar sesión sin usuario o token.');
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE_URL}/usuarios/logout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                console.log(data.mensaje);
+            } else {
+                console.error('Error al cerrar sesión en el backend:', data.error);
+            }
+        } catch (error) {
+            console.error('Error de red al intentar cerrar sesión:', error);
+        } finally {
+            currentUser = null;
+            userToken = null;
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('userToken');
+            updateUIForLoginState();
+        }
+    });
+
+    // Forgot Password Flow
+    forgotPasswordLink.addEventListener('click', () => {
+        showStep(requestRecoveryStep);
+        recoveryEmailInput.value = '';
+        recoveryErrorDiv.textContent = '';
+    });
+
+    backToLoginFromRequestBtn.addEventListener('click', () => {
+        showStep(loginRegisterStep);
+    });
+
+    btnRequestRecoveryCode.addEventListener('click', async () => {
+        const email = recoveryEmailInput.value.trim();
+        if (!email) {
+            recoveryErrorDiv.textContent = 'Por favor, introduce tu email.';
+            return;
+        }
+        recoveryErrorDiv.textContent = '';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/usuarios/solicitar_recuperacion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                currentRecoveryEmail = email;
+                displayRecoveryEmailSpan.textContent = email;
+                showStep(verifyCodeStep);
+                verifyCodeInput.value = '';
+                verifyCodeErrorDiv.textContent = '';
+                alert(data.mensaje); // Show the message about checking console
+            } else {
+                recoveryErrorDiv.textContent = data.error || 'Error al solicitar código de recuperación.';
+            }
+        } catch (error) {
+            recoveryErrorDiv.textContent = 'Error de conexión con el servidor.';
+            console.error('Error requesting recovery code:', error);
+        }
+    });
+
+    backToRequestFromVerifyBtn.addEventListener('click', () => {
+        showStep(requestRecoveryStep);
+    });
+
+    btnVerifyCode.addEventListener('click', async () => {
+        const code = recoveryCodeInput.value.trim();
+        if (!code) {
+            verifyCodeErrorDiv.textContent = 'Por favor, introduce el código.';
+            return;
+        }
+        verifyCodeErrorDiv.textContent = '';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/usuarios/verificar_codigo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentRecoveryEmail, code })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                currentRecoveryUser = data.usuario;
+                displayResetUserSpan.textContent = data.usuario;
+                showStep(resetPasswordStep);
+                newPasswordInput.value = '';
+                confirmNewPasswordInput.value = '';
+                resetPasswordErrorDiv.textContent = '';
+                updatePasswordRulesDialogue(newPasswordInput.value, dialogueAllowWeakPasswordResetCheckbox.checked, true);
+            } else {
+                verifyCodeErrorDiv.textContent = data.error || 'Error al verificar el código.';
+            }
+        } catch (error) {
+            verifyCodeErrorDiv.textContent = 'Error de conexión con el servidor.';
+            console.error('Error verifying code:', error);
+        }
+    });
+
+    btnResetPassword.addEventListener('click', async () => {
+        const newPassword = newPasswordInput.value.trim();
+        const confirmNewPassword = confirmNewPasswordInput.value.trim();
+
+        if (!newPassword || !confirmNewPassword) {
+            resetPasswordErrorDiv.textContent = 'Por favor, completa ambos campos de contraseña.';
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            resetPasswordErrorDiv.textContent = 'Las contraseñas no coinciden.';
+            return;
+        }
+        if (!validatePassword(newPassword, dialogueAllowWeakPasswordResetCheckbox.checked)) {
+            resetPasswordErrorDiv.textContent = 'La nueva contraseña no cumple con los requisitos.';
+            return;
+        }
+        resetPasswordErrorDiv.textContent = '';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/usuarios/restablecer_password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentRecoveryEmail, code: recoveryCodeInput.value.trim(), newPassword })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(data.mensaje);
+                showStep(loginRegisterStep); // Go back to login after successful reset
+                inputUsuario.value = currentRecoveryUser; // Pre-fill username
+                inputPassword.value = '';
+                currentRecoveryEmail = '';
+                currentRecoveryUser = '';
+            } else {
+                resetPasswordErrorDiv.textContent = data.error || 'Error al restablecer la contraseña.';
+            }
+        } catch (error) {
+            resetPasswordErrorDiv.textContent = 'Error de conexión con el servidor.';
+            console.error('Error resetting password:', error);
+        }
+    });
+
+
+    // --- Mensajes Públicos ---
+    const formMensajePublico = document.getElementById('formMensajePublico');
+    const tbodyPublico = document.getElementById('tbodyPublico');
+    const nombrePublicoInput = document.getElementById('nombrePublico');
+    const togglePublicMessagesBtn = document.getElementById('togglePublicMessages');
+    const publicMessagesTableContainer = document.getElementById('publicMessagesTableContainer');
+
+    async function cargarMensajesPublicos() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/mensajes`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+        const mensajes = await response.json();
+        renderMensajesPublicos(mensajes);
+      } catch (error) {
+        tbodyPublico.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ff4466;">Error al cargar mensajes: ${error.message}.</td></tr>`;
+        console.error('Error al cargar mensajes públicos:', error);
+      }
+    }
+
+    function renderMensajesPublicos(mensajes) {
+      tbodyPublico.innerHTML = '';
+      if (!Array.isArray(mensajes) || mensajes.length === 0) {
+        tbodyPublico.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ccc;">No hay mensajes públicos.</td></tr>`;
+        return;
+      }
+      // Ordenar mensajes por ID de forma ascendente
+      mensajes.sort((a, b) => a.id - b.id); // AÑADIDO: Ordenar por ID
+
+      mensajes.forEach(msg => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${msg.id}</td>
+          <td>${escapeHtml(msg.nombre)}</td>
+          <td>${escapeHtml(msg.mensaje)}</td>
+          <td><button class="btn-eliminar" data-id="${msg.id}">Eliminar</button></td>
+        `;
+        tbodyPublico.appendChild(tr);
+      });
+      tbodyPublico.querySelectorAll('.btn-eliminar').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (!confirm(`¿Estás seguro de eliminar el mensaje ID ${id}?`)) return;
+          try {
+            const response = await fetch(`${API_BASE_URL}/mensajes/${id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${userToken}` // Se requiere token de usuario para eliminar
+              }
+            });
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+            cargarMensajesPublicos();
+          } catch (error) {
+            alert(`Error al eliminar mensaje: ${error.message}.`);
+            console.error('Error al eliminar mensaje público:', error);
+          }
+        });
+      });
+    }
+
+    formMensajePublico.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nombre = nombrePublicoInput.value.trim();
+      const mensaje = document.getElementById('mensajePublico').value.trim();
+
+      if (!nombre || !mensaje) {
+        alert('Por favor, completa todos los campos del mensaje público.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/mensajes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ nombre, mensaje }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+
+        document.getElementById('mensajePublico').value = '';
+        cargarMensajesPublicos();
+      } catch (error) {
+        alert(`Error al enviar mensaje público: ${error.message}.`);
+        console.error('Error al enviar mensaje público:', error);
+      }
+    });
+
+    togglePublicMessagesBtn.addEventListener('click', () => {
+        publicMessagesTableContainer.classList.toggle('hidden');
+        if (publicMessagesTableContainer.classList.contains('hidden')) {
+            togglePublicMessagesBtn.textContent = 'Mostrar Historial';
+        } else {
+            togglePublicMessagesBtn.textContent = 'Ocultar Historial';
+        }
+    });
+
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // --- Chat Privado ---
+    const buscarUsuariosInput = document.getElementById('buscarUsuarios');
+    const listaUsuariosDiv = document.getElementById('listaUsuarios');
+    const chatPrivadoDiv = document.getElementById('chatPrivado');
+    const chatTitulo = document.getElementById('chatTitulo');
+    const chatMensajesDiv = document.getElementById('chatMensajes');
+    const chatInputForm = document.getElementById('chatInputForm');
+    const chatInput = document.getElementById('chatInput');
+    const cerrarChatBtn = chatPrivadoDiv.querySelector('.cerrar');
+    const btnEliminarChatCompleto = document.getElementById('btnEliminarChatCompleto');
+
+    let currentChatUser = null;
+
+    async function cargarUsuariosParaChat() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/usuarios`, {
+            headers: {
+                'Authorization': `Bearer ${userToken}`
+            }
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+              alert('Tu sesión ha expirado o ha sido iniciada en otro dispositivo. Por favor, inicia sesión de nuevo.');
+              logoutButton.click();
+              return;
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+        const usuarios = await response.json();
+        renderUsuariosParaChat(usuarios);
+      } catch (error) {
+        listaUsuariosDiv.innerHTML = `<div style="color:#ff4466; padding:10px;">Error al cargar usuarios: ${error.message}.</div>`;
+        console.error('Error al cargar usuarios para chat:', error);
+      }
+    }
+
+    function renderUsuariosParaChat(usuarios) {
+      listaUsuariosDiv.innerHTML = '';
+      const filteredUsers = usuarios.filter(u => u.usuario !== currentUser);
+      if (filteredUsers.length === 0) {
+        listaUsuariosDiv.innerHTML = `<div style="color:#ccc; padding:10px;">No hay otros usuarios disponibles.</div>`;
+        return;
+      }
+      filteredUsers.forEach(u => {
+        const div = document.createElement('div');
+        div.textContent = u.usuario;
+        div.tabIndex = 0;
+        div.setAttribute('role', 'button');
+        div.setAttribute('aria-label', `Abrir chat privado con ${u.usuario}`);
+        div.addEventListener('click', () => abrirChat(u.usuario));
+        div.addEventListener('keypress', e => {
+          if (e.key === 'Enter' || e.key === ' ') abrirChat(u.usuario);
+        });
+        listaUsuariosDiv.appendChild(div);
+      });
+    }
+
+    buscarUsuariosInput.addEventListener('input', () => {
+      const query = buscarUsuariosInput.value.toLowerCase();
+      listaUsuariosDiv.innerHTML = '';
+      if (!query) {
+        cargarUsuariosParaChat();
+        return;
+      }
+      cargarUsuariosParaChat().then(() => {
+        const allUserDivs = listaUsuariosDiv.querySelectorAll('div');
+        allUserDivs.forEach(div => {
+          if (!div.textContent.toLowerCase().includes(query)) {
+            div.style.display = 'none';
+          } else {
+            div.style.display = 'block';
+          }
+        });
+      });
+    });
+
+
+    async function abrirChat(usuarioDestino) {
+      if (!currentUser) {
+        loginError.textContent = 'Debes iniciar sesión para usar el chat privado.';
+        return;
+      }
+      currentChatUser = usuarioDestino;
+      chatPrivadoDiv.classList.add('active');
+      document.getElementById('mainContent').style.display = 'none'; // Oculta el contenido principal
+      chatTitulo.textContent = `Chat con ${usuarioDestino}`;
+
+      stopNotificationPolling(); // Detener el polling de notificaciones al abrir el chat
+
+      await cargarMensajesPrivados(currentUser, usuarioDestino);
+      chatInput.focus();
+
+      // Marcar mensajes como leídos una once que el chat se abre
+      try {
+          const response = await fetch(`${API_BASE_URL}/mensajes_privados/marcar_leidos/${currentUser}/${usuarioDestino}`, {
+              method: 'PUT',
+              headers: { 'Authorization': `Bearer ${userToken}` }
+          });
+          if (!response.ok) {
+              console.error('Error al marcar mensajes como leídos:', await response.json());
+          }
+      } catch (error) {
+          console.error('Error de red al marcar mensajes como leídos:', error);
+      }
+      removeNotification(usuarioDestino); // Asegurarse de que la notificación se elimine
+
+      if (chatPollingInterval) {
+          clearInterval(chatPollingInterval);
+      }
+      chatPollingInterval = setInterval(() => {
+          if (currentUser && currentChatUser && chatPrivadoDiv.classList.contains('active')) {
+              cargarMensajesPrivados(currentUser, currentChatUser);
+          }
+      }, 3000);
+    }
+
+    function cerrarChat() {
+      chatPrivadoDiv.classList.remove('active');
+      chatMensajesDiv.innerHTML = '';
+      chatInput.value = '';
+      currentChatUser = null;
+      clearInterval(chatPollingInterval);
+      chatPollingInterval = null;
+      // Al cerrar el chat, si el usuario está logueado, mostrar el mainContent y la pestaña de mensajes
+      if (currentUser) {
+          document.getElementById('mainContent').style.display = 'block';
+          showTab('mensajes');
+          startNotificationPolling(); // Reanudar polling de notificaciones
+      }
+    }
+
+    cerrarChatBtn.addEventListener('click', cerrarChat);
+
+    async function cargarMensajesPrivados(usuarioActual, usuarioDestino) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/mensajes_privados/${usuarioActual}`, {
+            headers: {
+                'Authorization': `Bearer ${userToken}`
+            }
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+              alert('Tu sesión ha expirado o ha sido iniciada en otro dispositivo. Por favor, inicia sesión de nuevo.');
+              logoutButton.click();
+              return;
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+        const allMessages = await response.json();
+
+        const relevantMessages = allMessages.filter(m =>
+          (m.de === usuarioActual && m.para === usuarioDestino) ||
+          (m.de === usuarioDestino && m.para === usuarioActual)
+        );
+        renderChat(relevantMessages, usuarioActual);
+      } catch (error) {
+        chatMensajesDiv.innerHTML = `<div style="color:#ff4466; padding:10px;">Error al cargar mensajes privados: ${error.message}.</div>`;
+        console.error('Error al cargar mensajes privados:', error);
+      }
+    }
+
+    function renderChat(mensajes, usuarioActual) {
+      const currentScrollTop = chatMensajesDiv.scrollTop;
+      const isScrolledToBottom = chatMensajesDiv.scrollHeight - chatMensajesDiv.clientHeight <= currentScrollTop + 1;
+
+      chatMensajesDiv.innerHTML = '';
+      if (!Array.isArray(mensajes) || mensajes.length === 0) {
+        chatMensajesDiv.innerHTML = `<div style="color:#ccc; padding:10px;">Inicia una conversación.</div>`;
+        return;
+      }
+      mensajes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      mensajes.forEach(m => {
+        const div = document.createElement('div');
+        div.classList.add(m.de === usuarioActual ? 'sent' : 'received');
+        const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        div.innerHTML = `
+            <div class="message-content">
+                <strong>${escapeHtml(m.de)}</strong> <span style="font-size:0.8em; opacity:0.7;">${time}</span><br>
+                ${escapeHtml(m.mensaje)}
+            </div>
+        `;
+        chatMensajesDiv.appendChild(div);
+      });
+
+      if (isScrolledToBottom || (mensajes.length > 0 && mensajes[mensajes.length - 1].de === usuarioActual)) {
+          chatMensajesDiv.scrollTop = chatMensajesDiv.scrollHeight;
+      }
+    }
+
+    btnEliminarChatCompleto.addEventListener('click', async () => {
+        if (!currentUser || !currentChatUser || !userToken) {
+            alert('No hay un chat activo o no has iniciado sesión para eliminar.');
+            return;
+        }
+
+        if (!confirm(`¿Estás seguro de eliminar TODA la conversación con ${currentChatUser}? Esta acción solo afectará tu vista del chat y es irreversible.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/mensajes_privados/chat/${currentUser}/${currentChatUser}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${userToken}`
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    alert('Tu sesión ha expirado o ha sido iniciada en otro dispositivo. Por favor, inicia sesión de nuevo.');
+                    logoutButton.click();
+                    return;
+                }
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+
+            alert(`Conversación con ${currentChatUser} eliminada con éxito para tu vista.`);
+            cerrarChat();
+        } catch (error) {
+            alert(`Error al eliminar la conversación: ${error.message}.`);
+            console.error('Error al eliminar chat completo:', error);
+        }
+    });
+
+
+    chatInputForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentUser || !currentChatUser || !userToken) {
+        loginError.textContent = 'No hay un chat activo o no has iniciado sesión.';
+        return;
+      }
+      const mensaje = chatInput.value.trim();
+      if (!mensaje) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/mensajes_privados`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}`
+          },
+          body: JSON.stringify({ de: currentUser, para: currentChatUser, mensaje }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+              alert('Tu sesión ha expirado o ha sido iniciada en otro dispositivo. Por favor, inicia sesión de nuevo.');
+              logoutButton.click();
+              return;
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+
+        chatInput.value = '';
+        await cargarMensajesPrivados(currentUser, currentChatUser);
+      } catch (error) {
+        loginError.textContent = `Error al enviar mensaje privado: ${error.message}.`;
+        console.error('Error al enviar mensaje privado:', error);
+      }
+    });
+
+    // --- Funciones de Notificación ---
+
+    // Función para mostrar una notificación
+    function showNotification(sender) {
+        if (chatPrivadoDiv.classList.contains('active') && currentChatUser === sender) {
+            // Si el chat con este remitente ya está abierto, no mostrar notificación
+            return;
+        }
+        if (activeNotifications.has(sender)) {
+            // Si ya hay una notificación de este remitente, no crear otra
+            return;
+        }
+
+        const notificationDiv = document.createElement('div');
+        notificationDiv.classList.add('message-notification');
+        notificationDiv.innerHTML = `
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+            </svg>
+            <span>Nuevo mensaje de <strong>${escapeHtml(sender)}</strong></span>
+            <span class="close-notification">&times;</span>
+        `;
+
+        notificationDiv.addEventListener('click', () => {
+            abrirChat(sender);
+            // La función abrirChat ya se encarga de eliminar la notificación y marcar como leído
+        });
+
+        notificationDiv.querySelector('.close-notification').addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar que el clic en la 'x' abra el chat
+            removeNotification(sender);
+        });
+
+        notificationContainer.appendChild(notificationDiv);
+        activeNotifications.set(sender, notificationDiv);
+
+        // Animar la entrada de la notificación
+        setTimeout(() => {
+            notificationDiv.classList.add('show');
+        }, 10); // Pequeño retraso para asegurar que la transición se aplique
+
+        // Mostrar el contenedor de notificaciones si no está visible
+        notificationContainer.style.display = 'flex';
+    }
+
+    // Función para eliminar una notificación
+    function removeNotification(sender) {
+        const notificationDiv = activeNotifications.get(sender);
+        if (notificationDiv) {
+            notificationDiv.classList.remove('show');
+            notificationDiv.addEventListener('transitionend', () => {
+                notificationDiv.remove();
+                activeNotifications.delete(sender);
+                // Ocultar el contenedor si no quedan notificaciones
+                if (activeNotifications.size === 0) {
+                    notificationContainer.style.display = 'none';
+                }
+            }, { once: true });
+        }
+    }
+
+    // Función para verificar nuevos mensajes periódicamente
+    async function checkNewMessages() {
+        if (!currentUser || chatPrivadoDiv.classList.contains('active')) {
+            // No verificar si no hay usuario logueado o si el chat privado ya está abierto
+            return;
+        }
+
+        try {
+            const allUsersResponse = await fetch(`${API_BASE_URL}/usuarios`, {
+                headers: { 'Authorization': `Bearer ${userToken}` }
+            });
+            if (!allUsersResponse.ok) {
+                if (allUsersResponse.status === 401) {
+                    console.warn('Sesión expirada al verificar usuarios para notificaciones.');
+                    logoutButton.click(); // Forzar logout si el token es inválido
+                }
+                throw new Error(`Error al obtener lista de usuarios: ${allUsersResponse.status}`);
+            }
+            const allUsers = await allUsersResponse.json();
+            const otherUsers = allUsers.filter(u => u.usuario !== currentUser);
+
+            for (const user of otherUsers) {
+                const response = await fetch(`${API_BASE_URL}/mensajes_privados/nuevos/${currentUser}/${user.usuario}`, {
+                    headers: { 'Authorization': `Bearer ${userToken}` }
+                });
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        console.warn('Sesión expirada al verificar nuevos mensajes.');
+                        logoutButton.click(); // Forzar logout si el token es inválido
+                        return; // Salir de la función para evitar más errores
+                    }
+                    throw new Error(`Error al verificar mensajes de ${user.usuario}: ${response.status}`);
+                }
+                const data = await response.json();
+                if (data.tieneNuevos) {
+                    showNotification(data.remitente);
+                }
+            }
+        } catch (error) {
+            console.error('Error en el polling de notificaciones:', error);
+        }
+    }
+
+    // Iniciar/detener el polling de notificaciones
+    function startNotificationPolling() {
+        if (notificationPollingInterval) {
+            clearInterval(notificationPollingInterval);
+        }
+        // Polling cada 5 segundos
+        notificationPollingInterval = setInterval(checkNewMessages, 5000);
+        console.log('Polling de notificaciones iniciado.');
+    }
+
+    function stopNotificationPolling() {
+        if (notificationPollingInterval) {
+            clearInterval(notificationPollingInterval);
+            notificationPollingInterval = null;
+            console.log('Polling de notificaciones detenido.');
+        }
+        // Limpiar todas las notificaciones activas al detener el polling (ej. al cerrar sesión)
+        activeNotifications.forEach((_, sender) => removeNotification(sender));
+    }
+
+    // --- Reproductor de Música ---
+    const audio = new Audio();
+    const musicFiles = [
+        'music/song1.mp3', // Asegúrate de que esta ruta sea correcta
+        'music/song2.mp3',
+        'music/song3.mp3',
+        'music/song4.mp3',
+        'music/song5.mp3',
+        'music/song6.mp3'
+        // Agrega más canciones aquí
+    ];
+    let currentSongIndex = 0;
+    let isMuted = false;
+
+    const muteToggleBtn = document.getElementById('muteToggleBtn');
+    const volumeIcon = document.getElementById('volumeIcon');
+    const nextSongBtn = document.getElementById('nextSongBtn');
+
+    function loadAndPlaySong(index) {
+        if (musicFiles.length === 0) {
+            console.warn('No hay archivos de música configurados.');
+            return;
+        }
+        audio.src = musicFiles[index];
+        audio.loop = false; // No queremos que una sola canción se repita infinitamente
+        audio.play().catch(error => {
+            console.error('Error al intentar reproducir la música:', error);
+            // Esto puede ocurrir si el navegador bloquea la reproducción automática.
+            // Considera añadir un botón de "Play" inicial si esto es un problema.
+        });
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        audio.muted = isMuted;
+        updateVolumeIcon();
+    }
+
+    function updateVolumeIcon() {
+        if (isMuted) {
+            volumeIcon.innerHTML = '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.56 21 13.38 21 12c0-4.28-3-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.28 4.28c-.9.67-1.98 1.18-3.17 1.47v2.06c2.72-.66 5.07-2.32 6.9-4.31L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>'; // Icono de silencio
+        } else {
+            volumeIcon.innerHTML = '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>'; // Icono de volumen normal
+        }
+    }
+
+    function playNextSong() {
+        currentSongIndex = (currentSongIndex + 1) % musicFiles.length;
+        loadAndPlaySong(currentSongIndex);
+    }
+
+    // Cuando la canción actual termina, reproduce la siguiente
+    audio.addEventListener('ended', playNextSong);
+
+    // Cargar y reproducir la primera canción al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAndPlaySong(currentSongIndex);
+        updateVolumeIcon(); // Asegura que el icono de volumen se muestre correctamente al inicio
+        // Añadir event listeners para los botones de música
+        muteToggleBtn.addEventListener('click', toggleMute);
+        nextSongBtn.addEventListener('click', playNextSong);
+    });
+
+    // --- Introducción tipo Videojuego ---
+    const gameIntroDiv = document.getElementById('gameIntro');
+    const dialogueTextSpan = document.getElementById('dialogueText');
+    const characterImage = document.getElementById('characterImage');
+
+    let currentDialogueIndex = 0;
+    let charIndex = 0;
+    let typingInterval;
+    let mouthAnimationInterval;
+
+    // URLs de las imágenes del personaje (boca cerrada y boca abierta)
+    const characterImages = {
+        closedMouth: 'images/Close.png', // URL de tu personaje pixelado con boca cerrada
+        openMouth: 'images/Open.png' // URL de tu personaje pixelado con boca abierta
+    };
+
+    // Declarar dialogues fuera de la función para que sea accesible globalmente
+    let dialogues = [];
+
+    function showGameIntro() {
+        // Inicializar dialogues aquí para que use el currentUser actual
+        dialogues = [
+            "¡Hola, " + currentUser + "! Parece que has llegado a nuestro humilde centro de comunicaciones.",
+            "Soy el Guardián de los Mensajes, y estoy aquí para guiarte.",
+            "Este lugar es especial. Aquí puedes compartir tus pensamientos con el mundo...",
+            "...o susurrar secretos a un amigo en privado.",
+            "Pero antes de que te sumerjas, déjame explicarte un par de cosas.",
+            "¡Prepárate para conectar!"
+        ];
+
+        gameIntroDiv.style.display = 'flex';
+        document.getElementById('mainContent').style.display = 'none'; // Asegurarse de que el contenido principal esté oculto
+        currentDialogueIndex = 0;
+        charIndex = 0;
+        characterImage.style.backgroundImage = `url('${characterImages.closedMouth}')`; // Establecer imagen inicial
+        typeWriterEffect();
+        document.addEventListener('keydown', handleGameIntroKeyPress);
+    }
+
+    function typeWriterEffect() {
+        clearInterval(typingInterval); // Limpiar cualquier intervalo anterior de escritura
+        clearInterval(mouthAnimationInterval); // Limpiar cualquier intervalo anterior de animación de boca
+
+        dialogueTextSpan.textContent = ''; // Limpiar el texto actual
+
+        if (currentDialogueIndex < dialogues.length) {
+            const currentText = dialogues[currentDialogueIndex];
+            charIndex = 0;
+
+            // Iniciar animación de boca
+            let mouthOpen = false;
+            mouthAnimationInterval = setInterval(() => {
+                mouthOpen = !mouthOpen;
+                characterImage.style.backgroundImage = `url('${mouthOpen ? characterImages.openMouth : characterImages.closedMouth}')`;
+            }, 150); // Velocidad de la animación de la boca
+
+            // Iniciar escritura de texto
+            typingInterval = setInterval(() => {
+                if (charIndex < currentText.length) {
+                    dialogueTextSpan.textContent += currentText.charAt(charIndex);
+                    charIndex++;
+                } else {
+                    clearInterval(typingInterval);
+                    clearInterval(mouthAnimationInterval); // Detener animación de boca al terminar de escribir
+                    characterImage.style.backgroundImage = `url('${characterImages.closedMouth}')`; // Dejar boca cerrada
+                }
+            }, 50); // Velocidad de escritura (ms por caracter)
+        } else {
+            // Fin de la introducción
+            clearInterval(typingInterval);
+            clearInterval(mouthAnimationInterval);
+            gameIntroDiv.style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            showTab('que-somos'); // Mostrar la primera pestaña de contenido
+            document.removeEventListener('keydown', handleGameIntroKeyPress);
+        }
+    }
+
+    function handleGameIntroKeyPress(event) {
+        if (event.key === 'Enter') {
+            const currentText = dialogues[currentDialogueIndex]; // Acceder a 'dialogues' globalmente
+            if (charIndex < currentText.length) { // Si el texto no ha terminado de escribirse
+                clearInterval(typingInterval);
+                clearInterval(mouthAnimationInterval);
+                dialogueTextSpan.textContent = currentText; // Mostrar el texto completo
+                charIndex = currentText.length;
+                characterImage.style.backgroundImage = `url('${characterImages.closedMouth}')`; // Dejar boca cerrada
+            } else {
+                currentDialogueIndex++;
+                typeWriterEffect(); // Llamar sin argumentos, ya que 'dialogues' es global
+            }
+        }
+    }
+
+    // --- Funciones para Contacto y Mis Solicitudes ---
+    const formContacto = document.getElementById('formContacto');
+    const contactUsuarioInput = document.getElementById('contactUsuario');
+    const contactEmailInput = document.getElementById('contactEmail');
+    const contactMensajeInput = document.getElementById('contactMensaje');
+    const contactStatusDiv = document.getElementById('contactStatus');
+    const tbodyMisSolicitudes = document.getElementById('tbodyMisSolicitudes');
+    const misSolicitudesStatusDiv = document.getElementById('misSolicitudesStatus');
+
+    formContacto.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const usuario = contactUsuarioInput.value.trim();
+        const email = contactEmailInput.value.trim();
+        const mensaje = contactMensajeInput.value.trim();
+
+        if (!usuario || !email || !mensaje) {
+            displayStatus(contactStatusDiv, 'Por favor, completa todos los campos.', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/solicitudes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({ usuario, email, mensaje }) // Asegúrate de enviar los datos correctos
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayStatus(contactStatusDiv, data.mensaje, 'success');
+                contactEmailInput.value = '';
+                contactMensajeInput.value = '';
+                // Opcional: recargar mis solicitudes si el usuario está en esa pestaña
+                if (document.getElementById('mis-solicitudes').classList.contains('active')) {
+                    cargarMisSolicitudes();
+                }
+            } else {
+                if (response.status === 401) {
+                    displayStatus(contactStatusDiv, 'Tu sesión ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    logoutButton.click();
+                } else {
+                    displayStatus(contactStatusDiv, data.error || 'Error al enviar la solicitud.', 'error');
+                }
+                console.error('Error API Contacto:', data.error);
+            }
+        } catch (error) {
+            displayStatus(contactStatusDiv, 'Error de conexión con el servidor.', 'error');
+            console.error('Error de red o API Contacto:', error);
+        }
+    });
+
+    async function cargarMisSolicitudes() {
+        if (!currentUser || !userToken) {
+            displayStatus(misSolicitudesStatusDiv, 'Debes iniciar sesión para ver tus solicitudes.', 'info');
+            tbodyMisSolicitudes.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ccc;">Inicia sesión para ver tus solicitudes.</td></tr>';
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE_URL}/solicitudes/mis_solicitudes`, {
+                headers: {
+                    'Authorization': `Bearer ${userToken}`
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    displayStatus(misSolicitudesStatusDiv, 'Tu sesión ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    logoutButton.click();
+                    return;
+                }
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+
+            const solicitudes = await response.json();
+            renderMisSolicitudes(solicitudes);
+            displayStatus(misSolicitudesStatusDiv, '', ''); // Limpiar mensaje de estado
+        } catch (error) {
+            displayStatus(misSolicitudesStatusDiv, `Error al cargar tus solicitudes: ${error.message}.`, 'error');
+            console.error('Error al cargar mis solicitudes:', error);
+        }
+    }
+
+    function renderMisSolicitudes(solicitudes) {
+        tbodyMisSolicitudes.innerHTML = '';
+        if (!Array.isArray(solicitudes) || solicitudes.length === 0) {
+            tbodyMisSolicitudes.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ccc;">No has enviado ninguna solicitud aún.</td></tr>';
+            return;
+        }
+        // Ordenar solicitudes por ID de forma ascendente
+        solicitudes.sort((a, b) => a.id - b.id);
+
+        solicitudes.forEach((sol, index) => { // Añadir index para el ID consecutivo
+            const tr = document.createElement('tr');
+            const fechaFormateada = new Date(sol.fecha).toLocaleString();
+            let estadoClass = '';
+            if (sol.estado === 'Pendiente') estadoClass = 'estado-pendiente';
+            else if (sol.estado === 'Aprobada') estadoClass = 'estado-aprobada';
+            else if (sol.estado === 'Rechazada') estadoClass = 'estado-rechazada';
+
+            const respuestaAdminHtml = sol.respuestaAdmin ?
+                `<div class="respuesta-admin"><strong>Respuesta:</strong> ${escapeHtml(sol.respuestaAdmin)}</div>` :
+                '';
+
+            tr.innerHTML = `
+                <td>${index + 1}</td> <!-- Mostrar índice consecutivo -->
+                <td>${fechaFormateada}</td>
+                <td>${escapeHtml(sol.email)}</td>
+                <td>${escapeHtml(sol.mensaje)}</td>
+                <td class="${estadoClass}">${escapeHtml(sol.estado)}</td>
+                <td>${respuestaAdminHtml}</td>
+            `;
+            tbodyMisSolicitudes.appendChild(tr);
+        });
+    }
+
+    // Función auxiliar para mostrar mensajes de estado
+    function displayStatus(element, message, type) {
+        element.textContent = message;
+        element.className = 'status-message'; // Reset classes
+        if (type) {
+            element.classList.add(type);
+        }
+        // Clear message after some time
+        if (message) {
+            setTimeout(() => {
+                element.textContent = '';
+                element.className = 'status-message';
+            }, 5000);
+        }
+    }
+
+  </script>
+</body>
+</html>

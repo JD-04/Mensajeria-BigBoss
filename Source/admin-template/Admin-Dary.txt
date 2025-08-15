@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Administración - Mensajería Web</title>
+  <link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet" />
+  <style>
+    /* Fuente y reset */
+    * {
+      box-sizing: border-box;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Minecraftia', sans-serif;
+      background: #000;
+      color: #ffffff;
+      overflow-x: hidden;
+    }
+
+    /* Fondo canvas */
+    #fondoCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    /* Login Wrapper */
+    #loginWrapper {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    /* Login Modal */
+    #loginModal {
+      background: #111;
+      border: 2px solid #0ff;
+      box-shadow: 0 0 30px #00fff7;
+      border-radius: 20px;
+      padding: 30px 40px; /* Ajustado para ser más amplio */
+      width: 600px; /* Ajustado para ser más amplio */
+      max-width: 95vw; /* Ajustado para ser más amplio */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      color: #eee;
+      animation: fadeInZoom 0.8s forwards;
+    }
+    #loginModal .modal-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    #loginModal .modal-header img {
+        max-width: 150px; /* Tamaño de la imagen */
+        height: auto;
+        margin-bottom: 10px;
+        image-rendering: pixelated;
+    }
+    /* Clase para ocultar el logo */
+    #loginModal .modal-header img.hide-logo {
+        display: none;
+    }
+    #loginModal .modal-header h2 {
+      margin: 0;
+      font-size: 2.2rem; /* Ajustado para que el texto quepa en una línea */
+      background: linear-gradient(to right, #00fff7, #ff00c8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px #00fff7, 0 0 30px #ff00c8;
+      user-select: none;
+      animation: fadeInZoom 2s ease-in-out;
+    }
+    #loginModal input {
+      width: 100%;
+      padding: 18px;
+      font-size: 1.2rem;
+      border-radius: 12px;
+      border: 2px solid #ff00c8;
+      background-color: #111;
+      color: #fff;
+      font-family: 'Minecraftia', sans-serif;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #loginModal input:focus {
+      outline: none;
+      border-color: #00fff7;
+      box-shadow: 0 0 15px #00fff7;
+    }
+    #loginModal button {
+      width: 100%;
+      padding: 18px;
+      font-size: 1.3rem;
+      font-weight: bold;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Minecraftia', sans-serif;
+      background-color: #ff00c8;
+      color: #000;
+      box-shadow: 0 0 20px #ff00c8;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+    }
+    #loginModal button:hover {
+      background-color: #00fff7;
+      color: #000;
+      box-shadow: 0 0 20px #00fff7;
+    }
+    #loginModal .error {
+      color: #ff4466;
+      font-weight: bold;
+      user-select: none;
+      text-align: center;
+    }
+    #loginModal .forgot-password {
+      font-size: 1.1rem;
+      color: #ccc;
+      user-select: none;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: 10px;
+      transition: color 0.3s ease;
+    }
+    #loginModal .forgot-password:hover {
+      color: #00fff7;
+    }
+    /* Estilos para deshabilitar inputs y botones cuando hay sesión activa */
+    #loginModal.logged-in input,
+    #loginModal.logged-in button,
+    #loginModal.logged-in .forgot-password {
+        opacity: 0.5;
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+
+    /* Recovery steps */
+    .recovery-step {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .recovery-step.active {
+        display: flex;
+    }
+    .recovery-step .back-button {
+        background-color: #6c757d;
+        color: #fff;
+        box-shadow: 0 0 10px #6c757d;
+    }
+    .recovery-step .back-button:hover {
+        background-color: #5a6268;
+        box-shadow: 0 0 15px #5a6268;
+    }
+
+
+    /* Nuevo estilo para el diálogo de reglas de contraseña */
+    #passwordRulesDialogueAdmin {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #111;
+        border: 2px solid #0ff;
+        box-shadow: 0 0 30px #00fff7;
+        border-radius: 15px;
+        padding: 20px;
+        max-width: 350px;
+        width: auto;
+        margin-top: 0;
+        z-index: 2000;
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        font-family: 'Minecraftia', sans-serif;
+        color: #eee;
+    }
+    #passwordRulesDialogueAdmin ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    #passwordRulesDialogueAdmin li {
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+    }
+    #passwordRulesDialogueAdmin li.valid {
+        color: #28a745;
+    }
+    #passwordRulesDialogueAdmin li.invalid {
+        color: #dc3545;
+    }
+    #passwordRulesDialogueAdmin li::before {
+        content: '•';
+        margin-right: 8px;
+        font-size: 1.2em;
+    }
+    #passwordRulesDialogueAdmin li.valid::before {
+        content: '✓';
+        color: #28a745;
+    }
+    #passwordRulesDialogueAdmin li.invalid::before {
+        content: '✗';
+        color: #dc3545;
+    }
+
+
+    /* Contenido principal (Panel de Admin) */
+    #adminPanel {
+      display: none; /* Oculto por defecto */
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      /* Ajuste: Aumentar el margen superior para separar de la nav */
+      margin: 120px auto 40px auto;
+      background: #111;
+      border-radius: 20px;
+      border: 2px solid #0ff;
+      box-shadow: 0 0 30px #00fff7;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: fadeInZoom 0.8s forwards;
+      color: #ccc;
+      padding: 30px; /* Añadir padding para el contenido */
+    }
+
+    /* Navegación - Ajustes de alineación */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      max-width: 1400px; /* Limita el ancho máximo de la barra */
+      left: 50%; /* Mueve el inicio al 50% del ancho de la pantalla */
+      transform: translateX(-50%); /* Compensa el 50% del ancho de la barra para centrarla */
+      background-color: rgba(0, 0, 0, 0.9);
+      border-bottom: 2px solid #00fff7;
+      padding: 20px 0;
+      z-index: 999;
+      display: flex;
+      justify-content: center;
+      /* Ajuste: Reducir el gap para que los elementos no se separen tanto */
+      gap: 20px; /* Reducido de 40px a 20px */
+      box-shadow: 0 0 20px #00fff7;
+      user-select: none;
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      /* Ajuste: Reducir padding horizontal para que quepan más elementos */
+      padding: 10px 15px; /* Reducido de 20px a 15px */
+      border: 2px solid transparent;
+      border-radius: 10px;
+      transition: 0.3s ease-in-out;
+      cursor: pointer;
+      /* Ajuste: Reducir el tamaño de fuente para que quepan más elementos */
+      font-size: 1rem; /* Reducido de 1.1rem a 1rem */
+      font-family: 'Minecraftia', sans-serif;
+      background: none;
+      text-transform: none;
+      font-weight: normal;
+    }
+    nav a.active, nav a:hover {
+      background-color: #ff00c8;
+      box-shadow: 0 0 10px #ff00c8;
+      color: #000;
+      border-color: #ff00c8;
+      text-shadow: none;
+    }
+    /* Estilo para el botón de cerrar sesión de admin */
+    #adminLogoutButton {
+        background-color: #ff4466;
+        color: #fff;
+        border: 2px solid #ff4466;
+        box-shadow: 0 0 10px #ff4466;
+    }
+    #adminLogoutButton:hover {
+        background-color: #cc0033;
+        box-shadow: 0 0 15px #cc0033;
+    }
+
+    /* Header principal del panel - Ajustes de alineación */
+    header {
+      /* Ajuste: Aumentar aún más el padding-top para bajar el texto */
+      text-align: center;
+      width: 100%;
+      /* Ajuste: Aumentar padding-top para bajar el título */
+      padding: 100px 30px 40px 30px; /* Aumentado de 80px a 100px */
+      margin-top: 0;
+      font-size: 2.5rem;
+      background: linear-gradient(to right, #00fff7, #ff00c8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px #00fff7, 0 0 30px #ff00c8;
+      font-weight: normal;
+      user-select: none;
+    }
+    h2 {
+      color: #ff00c8;
+      margin-bottom: 25px;
+      text-align: center;
+      font-size: 2rem;
+      font-weight: normal;
+      user-select: none;
+    }
+    p {
+      text-align: justify;
+      line-height: 1.7;
+      color: #ccc;
+      font-size: 1.2rem;
+      user-select: text;
+      margin-bottom: 20px;
+    }
+    #view-private-chats p {
+        text-align: center;
+    }
+
+
+    /* Secciones de contenido del panel - Ajustes de alineación */
+    .admin-content-section {
+      max-width: 100%;
+      margin: 40px auto;
+      padding: 30px;
+      background: #1a1a1a;
+      border-radius: 15px;
+      border: 1px solid #00fff7;
+      box-shadow: 0 0 20px rgba(0, 255, 247, 0.3);
+      display: none;
+    }
+    .admin-content-section.active {
+      display: block;
+    }
+
+    /* Formularios y Tablas */
+    .admin-content-section form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 30px;
+      align-items: center;
+    }
+    .admin-content-section form input,
+    .admin-content-section form select,
+    .admin-content-section form button {
+        max-width: 500px;
+        width: 100%;
+    }
+
+    .admin-content-section input[type="text"],
+    .admin-content-section input[type="password"],
+    .admin-content-section input[type="email"],
+    .admin-content-section select {
+      padding: 18px;
+      font-size: 1.2rem;
+      border-radius: 12px;
+      border: 2px solid #ff00c8;
+      background-color: #111;
+      color: #fff;
+      font-family: 'Minecraftia', sans-serif;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .admin-content-section input[type="text"]:focus,
+    .admin-content-section input[type="password"]:focus,
+    .admin-content-section input[type="email"]:focus,
+    .admin-content-section select:focus {
+      outline: none;
+      border-color: #00fff7;
+      box-shadow: 0 0 12px #00fff7;
+    }
+    .admin-content-section button {
+      padding: 18px;
+      font-size: 1.3rem;
+      font-weight: bold;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Minecraftia', sans-serif;
+      background-color: #ff00c8;
+      color: #000;
+      box-shadow: 0 0 20px #ff00c8;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+    }
+    .admin-content-section button:hover {
+      background-color: #00fff7;
+      color: #000;
+      box-shadow: 0 0 20px #00fff7;
+    }
+
+    .admin-content-section table {
+      width: 100%;
+      margin: 20px auto 0 auto;
+      border-collapse: collapse;
+      background: #111;
+      box-shadow: 0 0 25px #ff00c8;
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 1rem;
+      color: #ccc;
+      user-select: text;
+    }
+    .admin-content-section th, .admin-content-section td {
+      padding: 15px 20px;
+      border-bottom: 1px solid #444;
+      vertical-align: middle;
+    }
+    .admin-content-section th:last-child {
+        text-align: center;
+    }
+    .admin-content-section td:last-child {
+        text-align: center;
+    }
+      /* Nuevo estilo para alinear el primer th y td a la izquierda */
+    .admin-content-section th:first-child,
+    .admin-content-section td:first-child {
+        text-align: left; /* Alinea el texto a la izquierda */
+    }
+
+    /* Alineación de texto en celdas específicas */
+    #manage-users th:nth-child(1), #manage-users td:nth-child(1) { text-align: left; } /* Usuario */
+    #manage-users th:nth-child(2), #manage-users td:nth-child(2) { text-align: left; } /* Email */
+    #manage-users th:nth-child(3), #manage-users td:nth-child(3) { text-align: center; } /* Acciones */
+
+    #manage-public-messages th:nth-child(1), #manage-public-messages td:nth-child(1) { text-align: left; } /* ID */
+    #manage-public-messages th:nth-child(2), #manage-public-messages td:nth-child(2) { text-align: left; } /* Nombre */
+    #manage-public-messages th:nth-child(3), #manage-public-messages td:nth-child(3) { text-align: left; } /* Mensaje */
+    #manage-public-messages th:nth-child(4), #manage-public-messages td:nth-child(4) { text-align: center; } /* Eliminar */
+
+
+    .admin-content-section th {
+      background-color: #ff00c8;
+      color: #000;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      font-size: 1.1rem;
+    }
+    .admin-content-section tr:hover {
+      background-color: #222;
+      cursor: default;
+    }
+    .admin-content-section .btn-eliminar {
+      background-color: #ff00c8;
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      cursor: pointer;
+      padding: 6px 12px;
+      font-family: 'Minecraftia', sans-serif;
+      font-weight: bold;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+    }
+    .admin-content-section .btn-eliminar:hover {
+      background-color: #00fff7;
+      color: #000;
+    }
+
+    /* Mensajes de estado */
+    .status-message {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .status-message.success {
+        background-color: #28a745;
+        color: #fff;
+    }
+    .status-message.error {
+        background-color: #dc3545;
+        color: #fff;
+    }
+
+    /* Estilos para el visor de chat */
+    #chatViewer {
+        background: #0d0d0d;
+        border: 1px solid #00fff7;
+        border-radius: 10px;
+        padding: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+        margin-top: 20px;
+        font-size: 0.95rem;
+        line-height: 1.4;
+    }
+    #chatViewer .message-entry {
+        margin-bottom: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        word-wrap: break-word;
+    }
+    #chatViewer .message-entry.sent {
+        background-color: #3a002e; /* Un tono oscuro del color de envío */
+        color: #ffccff;
+        text-align: right;
+    }
+    #chatViewer .message-entry.received {
+        background-color: #002e2c; /* Un tono oscuro del color de recepción */
+        color: #ccffff;
+        text-align: left;
+    }
+    #chatViewer .message-entry strong {
+        color: #00fff7; /* Color para el nombre del remitente */
+    }
+    #chatViewer .message-entry .timestamp {
+        font-size: 0.75em;
+        opacity: 0.6;
+        margin-left: 10px;
+    }
+
+    /* Estilos para la tabla de solicitudes */
+    #tbodySolicitudes .estado-pendiente {
+        color: #ffc107; /* Amarillo */
+        font-weight: bold;
+    }
+    #tbodySolicitudes .estado-aprobada {
+        color: #28a745; /* Verde */
+        font-weight: bold;
+    }
+    #tbodySolicitudes .estado-rechazada {
+        color: #dc3545; /* Rojo */
+        font-weight: bold;
+    }
+    #tbodySolicitudes .respuesta-admin {
+        background-color: #333;
+        border-left: 3px solid #00fff7;
+        padding: 8px;
+        margin-top: 5px;
+        font-style: italic;
+        color: #eee;
+    }
+    #tbodySolicitudes .acciones-solicitud button {
+        margin: 5px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-aprobar {
+        background-color: #28a745;
+        color: #fff;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-aprobar:hover {
+        background-color: #218838;
+        box-shadow: 0 0 10px #28a745;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-rechazar {
+        background-color: #dc3545;
+        color: #fff;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-rechazar:hover {
+        background-color: #c82333;
+        box-shadow: 0 0 10px #dc3545;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-eliminar-solicitud {
+        background-color: #6c757d;
+        color: #fff;
+    }
+    #tbodySolicitudes .acciones-solicitud .btn-eliminar-solicitud:hover {
+        background-color: #5a6268;
+        box-shadow: 0 0 10px #6c757d;
+    }
+
+    /* Modal para respuesta del admin */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+    }
+
+    .modal-content {
+        background: #111;
+        border: 2px solid #0ff;
+        box-shadow: 0 0 30px #00fff7;
+        border-radius: 20px;
+        padding: 30px;
+        width: 500px;
+        max-width: 90vw;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        color: #eee;
+    }
+
+    .modal-content h3 {
+        margin-top: 0;
+        color: #ff00c8;
+        text-align: center;
+    }
+
+    .modal-content textarea {
+        width: 100%;
+        padding: 15px;
+        border-radius: 10px;
+        border: 2px solid #ff00c8;
+        background-color: #222;
+        color: #fff;
+        font-family: 'Minecraftia', sans-serif;
+        font-size: 1rem;
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .modal-content .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .modal-content .modal-buttons button {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-family: 'Minecraftia', sans-serif;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    .modal-content .modal-buttons .btn-confirm {
+        background-color: #00fff7;
+        color: #000;
+        border: none;
+    }
+    .modal-content .modal-buttons .btn-confirm:hover {
+        background-color: #00c8c0;
+    }
+
+    .modal-content .modal-buttons .btn-cancel {
+        background-color: #6c757d;
+        color: #fff;
+        border: none;
+    }
+    .modal-content .modal-buttons .btn-cancel:hover {
+        background-color: #5a6268;
+    }
+
+
+    /* Animaciones */
+    @keyframes fadeInZoom {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    /* Scrollbars personalizados */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111;
+      border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ff00c8;
+      border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00fff7;
+    }
+
+/* Ajuste de tamaño y altura para panel de recuperación/admin login */
+#loginModal {
+  padding: 30px 30px; /* Reducir padding */
+  width: 600px; /* Más compacto */
+  gap: 20px; /* Menos espacio vertical */
+}
+
+#loginModal h3,
+#loginModal p,
+#loginModal input,
+#loginModal button {
+  font-size: 1rem; /* Fuente más pequeña para que quepa mejor */
+}
+
+#loginModal input {
+  padding: 12px;
+}
+
+#loginModal button {
+  padding: 12px;
+  font-size: 1.1rem;
+}
+
+/* Compactar paso de recuperación */
+.recovery-step {
+  gap: 15px;
+}
+
+/* Ajuste del cuadro general del panel admin */
+#adminPanel {
+  padding: 20px; /* Menos padding */
+}
+
+</style>
+</head>
+<body>
+
+  <canvas id="fondoCanvas"></canvas>
+
+  <!-- Login Modal para Admin -->
+  <div id="loginWrapper">
+    <div id="loginModal">
+      <div class="modal-header">
+        <img src="images-admin/lock.gif" alt="Logo Mensajería Web">
+        <h2>Panel de Administración</h2>
+      </div>
+
+      <!-- Login Step -->
+      <div id="adminLoginStep" class="recovery-step active">
+        <input type="text" id="adminUsuario" placeholder="Usuario" autocomplete="username" />
+        <input type="password" id="adminPassword" placeholder="Contraseña" autocomplete="current-password" />
+        <button id="btnLoginAdmin">Entrar</button>
+        <div class="forgot-password" id="forgotAdminPassword">¿Olvidaste tu contraseña?</div>
+        <div class="error" id="adminLoginError"></div>
+      </div>
+
+      <!-- Admin Recovery Step 1: Request Code -->
+      <div id="adminRequestRecoveryStep" class="recovery-step">
+        <h3>Recuperar Contraseña Admin</h3>
+        <p>Introduce la clave secreta del servidor para solicitar un código de recuperación.</p>
+        <input type="password" id="adminServerKeyInput" placeholder="Clave Secreta del Servidor" />
+        <button id="btnRequestAdminRecoveryCode">Solicitar Código</button>
+        <button class="back-button" id="backToAdminLoginFromRequest">Volver al Login</button>
+        <div class="error" id="adminRecoveryError"></div>
+      </div>
+
+      <!-- Admin Recovery Step 2: Reset Password -->
+      <div id="adminResetPasswordStep" class="recovery-step">
+        <h3>Restablecer Contraseña Admin</h3>
+        <p>Introduce el código de recuperación y tu nueva contraseña.</p>
+        <input type="text" id="adminRecoveryCodeInput" placeholder="Código de Recuperación" />
+        <input type="password" id="adminNewPasswordInput" placeholder="Nueva Contraseña" />
+        <input type="password" id="adminConfirmNewPasswordInput" placeholder="Confirmar Nueva Contraseña" />
+        <button id="btnResetAdminPassword">Restablecer Contraseña</button>
+        <button class="back-button" id="backToAdminRequestFromReset">Volver</button>
+        <div class="error" id="adminResetPasswordError"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Diálogo de reglas de contraseña para Admin (oculto por defecto) -->
+  <div id="passwordRulesDialogueAdmin">
+      <h3>Requisitos de Contraseña</h3>
+      <ul id="dialoguePasswordRulesAdmin">
+          <li id="dialogueRuleLengthAdmin">Mínimo 8 caracteres</li>
+          <li id="dialogueRuleLowercaseAdmin">Al menos una minúscula</li>
+          <li id="dialogueRuleUppercaseAdmin">Al menos una mayúscula</li>
+          <li id="dialogueRuleNumberAdmin">Al menos un número</li>
+          <li id="dialogueRuleSpecialAdmin">Al menos un carácter especial (!@#$%^&*)</li>
+      </ul>
+  </div>
+
+  <!-- Panel de Administración -->
+  <div id="adminPanel" aria-live="polite" aria-atomic="true" role="main">
+
+    <nav aria-label="Navegación de Administración">
+      <a class="tab-link active" data-section="manage-users" onclick="showAdminTab('manage-users')">Gestionar Usuarios</a>
+      <a class="tab-link" data-section="manage-public-messages" onclick="showAdminTab('manage-public-messages')">Gestionar Mensajes Públicos</a>
+      <a class="tab-link" data-section="view-private-chats" onclick="showAdminTab('view-private-chats')">Ver Chats Privados</a>
+      <a class="tab-link" data-section="client-requests" onclick="showAdminTab('client-requests')">Solicitudes de Clientes</a>
+      <a class="tab-link" id="adminLogoutButton" style="display: none;">Cerrar Sesión Admin</a>
+    </nav>
+
+    <header>Panel de Administración</header>
+
+    <!-- Sección: Gestionar Usuarios -->
+    <div id="manage-users" class="admin-content-section active">
+      <h2>Crear Nuevo Usuario</h2>
+      <form id="formCreateUser">
+        <input type="text" id="newUsername" placeholder="Nombre de Usuario" required />
+        <input type="email" id="newUserEmail" placeholder="Email del Usuario" required />
+        <input type="password" id="newPassword" placeholder="Contraseña" required />
+        <button type="submit">Crear Usuario</button>
+        <div class="status-message" id="createUserStatus"></div>
+      </form>
+
+      <hr />
+
+      <h2>Cambiar Contraseña de Usuario</h2>
+      <form id="formChangePassword">
+        <input type="text" id="changePasswordUsername" placeholder="Usuario a modificar" required />
+        <input type="password" id="changeNewPassword" placeholder="Nueva Contraseña" required />
+        <input type="password" id="confirmNewPassword" placeholder="Confirmar Nueva Contraseña" required />
+        <button type="submit">Cambiar Contraseña</button>
+        <div class="status-message" id="changePasswordStatus"></div>
+      </form>
+
+      <hr />
+
+      <h2>Lista de Usuarios</h2>
+      <table>
+        <thead>
+          <tr><th>Usuario</th><th>Email</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbodyUsers"></tbody>
+      </table>
+      <div class="status-message" id="listUsersStatus"></div>
+    </div>
+
+    <!-- Sección: Gestionar Mensajes Públicos -->
+    <div id="manage-public-messages" class="admin-content-section">
+      <h2>Mensajes Públicos</h2>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Nombre</th><th>Mensaje</th><th>Eliminar</th></tr>
+        </thead>
+        <tbody id="tbodyAdminPublicMessages"></tbody>
+      </table>
+      <div class="status-message" id="publicMessagesStatus"></div>
+    </div>
+
+    <!-- Sección: Ver Chats Privados -->
+    <div id="view-private-chats" class="admin-content-section">
+        <h2>Ver Conversación Privada</h2>
+        <p style="text-align: center;">Selecciona dos usuarios para ver su historial de chat.</p>
+        <form id="formViewPrivateChat">
+            <select id="userSelect1" required>
+                <option value="">Selecciona Usuario 1</option>
+            </select>
+            <select id="userSelect2" required>
+                <option value="">Selecciona Usuario 2</option>
+            </select>
+            <button type="submit">Ver Chat</button>
+            <div class="status-message" id="viewChatStatus"></div>
+        </form>
+        <div id="chatViewer">
+            <p style="text-align: center; color: #aaa;">El historial de chat aparecerá aquí.</p>
+        </div>
+        <!-- Nuevo botón para eliminar chat completo por admin -->
+        <button id="btnAdminDeleteChat" style="display: none; margin-top: 20px;" class="btn-eliminar">Eliminar Chat Completo</button>
+    </div>
+
+    <!-- Nueva Sección: Solicitudes de Clientes -->
+    <div id="client-requests" class="admin-content-section">
+        <h2>Solicitudes de Clientes</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuario</th>
+                    <th>Email</th>
+                    <th>Mensaje</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Respuesta Admin</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbodySolicitudes">
+                <tr><td colspan="8" style="text-align:center; color:#ccc;">Cargando solicitudes...</td></tr>
+            </tbody>
+        </table>
+        <div class="status-message" id="solicitudesStatus"></div>
+    </div>
+
+  </div>
+
+  <!-- Modal para respuesta del admin (oculto por defecto) -->
+  <div id="adminResponseModal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+          <h3 id="modalTitle"></h3>
+          <textarea id="adminResponseMessage" placeholder="Escribe tu mensaje de respuesta al cliente..." required></textarea>
+          <div class="modal-buttons">
+              <button class="btn-confirm" id="modalConfirmBtn">Confirmar</button>
+              <button class="btn-cancel" id="modalCancelBtn">Cancelar</button>
+          </div>
+      </div>
+  </div>
+
+  <script>
+    // --- CONFIGURACIÓN DE LA API ---
+    const API_BASE_URL = '/api';
+    let adminToken = null; // Variable para almacenar el token del admin logueado
+
+    // --- FONDO POLÍGONOS ANIMADO CON CURSOR ---
+    (() => {
+      const canvas = document.getElementById('fondoCanvas');
+      const ctx = canvas.getContext('2d');
+      let width, height;
+      let points = [];
+      const POINTS_COUNT = 80;
+      const MAX_DISTANCE = 150;
+      const CURSOR_RADIUS = 120;
+      const cursor = { x: null, y: null };
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      class Point {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.vx = (Math.random() - 0.5) * 0.7;
+          this.vy = (Math.random() - 0.5) * 0.7;
+          this.connections = [];
+        }
+        move() {
+          this.x += this.vx;
+          this.y += this.vy;
+          if (this.x < 0 || this.x > width) this.vx *= -1;
+          if (this.y < 0 || this.y > height) this.vy *= -1;
+        }
+        distTo(other) {
+          return Math.hypot(this.x - other.x, this.y - other.y);
+        }
+      }
+
+      function initPoints() {
+        points = [];
+        for (let i = 0; i < POINTS_COUNT; i++) {
+          points.push(new Point(Math.random() * width, Math.random() * height));
+        }
+      }
+      initPoints();
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < POINTS_COUNT; i++) {
+          const p1 = points[i];
+          p1.move();
+          p1.connections = [];
+          for (let j = i + 1; j < POINTS_COUNT; j++) {
+            const p2 = points[j];
+            const dist = p1.distTo(p2);
+            if (dist < MAX_DISTANCE) {
+              p1.connections.push(p2);
+              const alpha = 1 - dist / MAX_DISTANCE;
+              ctx.strokeStyle = `rgba(255, 0, 200, ${alpha * 0.6})`;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        points.forEach(p => {
+          ctx.fillStyle = '#00fff7';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+
+        if (cursor.x !== null && cursor.y !== null) {
+          points.forEach(p => {
+            const dist = Math.hypot(p.x - cursor.x, p.y - cursor.y);
+            if (dist < CURSOR_RADIUS) {
+              const alpha = 1 - dist / CURSOR_RADIUS;
+              ctx.strokeStyle = `rgba(0, 255, 247, ${alpha * 0.8})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(cursor.x, cursor.y);
+              ctx.stroke();
+            }
+          });
+        }
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+
+      window.addEventListener('mousemove', e => {
+        cursor.x = e.clientX;
+        cursor.y = e.clientY;
+      });
+      window.addEventListener('mouseout', () => {
+        cursor.x = null;
+        cursor.y = null;
+      });
+    })();
+
+    // --- NAVEGACIÓN ENTRE SECCIONES DEL PANEL ADMIN ---
+    function showAdminTab(id) {
+      const contents = document.querySelectorAll('.admin-content-section');
+      const links = document.querySelectorAll('nav .tab-link');
+
+      contents.forEach(c => c.style.display = 'none');
+      links.forEach(l => l.classList.remove('active'));
+
+      const activeContent = document.getElementById(id);
+      if (activeContent) {
+        activeContent.style.display = 'block';
+        activeContent.classList.add('active');
+      }
+      const activeLink = document.querySelector(`nav .tab-link[data-section="${id}"]`);
+      if (activeLink) {
+          activeLink.classList.add('active');
+      }
+
+      // Cargar datos específicos de la pestaña
+      if (id === 'manage-users') {
+        cargarListaUsuarios();
+      } else if (id === 'manage-public-messages') {
+        cargarMensajesPublicosAdmin();
+      } else if (id === 'view-private-chats') {
+        populateUserSelects(); // Cargar usuarios para los selectores del chat
+        chatViewerDiv.innerHTML = '<p style="text-align: center; color: #aaa;">El historial de chat aparecerá aquí.</p>'; // Limpiar visor
+        btnAdminDeleteChat.style.display = 'none'; // Ocultar el botón al cambiar de pestaña
+      } else if (id === 'client-requests') { // Nueva sección
+        cargarSolicitudesClientes();
+      }
+    }
+
+    const navLinks = document.querySelectorAll('nav .tab-link');
+    navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        const targetId = link.getAttribute('data-section');
+        showAdminTab(targetId);
+      });
+    });
+
+    // --- LOGIN ADMIN & RECUPERACIÓN DE CONTRASEÑA ---
+    const loginWrapper = document.getElementById('loginWrapper');
+    const loginModal = document.getElementById('loginModal');
+    const btnLoginAdmin = document.getElementById('btnLoginAdmin');
+    const adminUsuarioInput = document.getElementById('adminUsuario');
+    const adminPasswordInput = document.getElementById('adminPassword');
+    const adminLoginError = document.getElementById('adminLoginError');
+    const adminPanel = document.getElementById('adminPanel');
+    const adminLogoutButton = document.getElementById('adminLogoutButton');
+    const adminModalHeaderImg = loginModal.querySelector('.modal-header img');
+
+    const adminLoginStep = document.getElementById('adminLoginStep');
+    const forgotAdminPasswordLink = document.getElementById('forgotAdminPassword');
+    const adminRequestRecoveryStep = document.getElementById('adminRequestRecoveryStep');
+    const adminServerKeyInput = document.getElementById('adminServerKeyInput');
+    const btnRequestAdminRecoveryCode = document.getElementById('btnRequestAdminRecoveryCode');
+    const adminRecoveryErrorDiv = document.getElementById('adminRecoveryError');
+    const adminResetPasswordStep = document.getElementById('adminResetPasswordStep');
+    const adminRecoveryCodeInput = document.getElementById('adminRecoveryCodeInput');
+    const adminNewPasswordInput = document.getElementById('adminNewPasswordInput');
+    const adminConfirmNewPasswordInput = document.getElementById('adminConfirmNewPasswordInput');
+    const btnResetAdminPassword = document.getElementById('btnResetAdminPassword');
+    const adminResetPasswordErrorDiv = document.getElementById('adminResetPasswordError');
+
+    const backToAdminLoginFromRequestBtn = document.getElementById('backToAdminLoginFromRequest');
+    const backToAdminRequestFromResetBtn = document.getElementById('backToAdminRequestFromReset');
+
+    // Elementos del diálogo de reglas de contraseña para Admin
+    const passwordRulesDialogueAdmin = document.getElementById('passwordRulesDialogueAdmin');
+    const dialoguePasswordRulesAdmin = document.getElementById('dialoguePasswordRulesAdmin');
+    const dialogueRuleLengthAdmin = document.getElementById('dialogueRuleLengthAdmin');
+    const dialogueRuleLowercaseAdmin = document.getElementById('dialogueRuleLowercaseAdmin');
+    const dialogueRuleUppercaseAdmin = document.getElementById('dialogueRuleUppercaseAdmin');
+    const dialogueRuleNumberAdmin = document.getElementById('dialogueRuleNumberAdmin');
+    const dialogueRuleSpecialAdmin = document.getElementById('dialogueRuleSpecialAdmin');
+
+
+    let currentAdminRecoveryCode = ''; // To store the code received from backend
+
+    function showAdminStep(stepElement) {
+        const steps = [adminLoginStep, adminRequestRecoveryStep, adminResetPasswordStep];
+        steps.forEach(step => step.classList.remove('active'));
+        stepElement.classList.add('active');
+        adminLoginError.textContent = '';
+        adminRecoveryErrorDiv.textContent = '';
+        adminResetPasswordErrorDiv.textContent = '';
+
+        // Ocultar/mostrar logo
+        if (stepElement === adminLoginStep) { // Solo mostrar logo en el login principal
+            adminModalHeaderImg.classList.remove('hide-logo');
+        } else {
+            adminModalHeaderImg.classList.add('hide-logo');
+        }
+
+        // Ocultar diálogo de reglas de contraseña al cambiar de paso
+        passwordRulesDialogueAdmin.style.display = 'none';
+    }
+
+    function updateAdminUIForLoginState() {
+        if (adminToken) {
+            loginWrapper.style.display = 'none';
+            adminPanel.style.display = 'block';
+            adminLogoutButton.style.display = 'inline-block';
+            showAdminTab('manage-users'); // Mostrar la primera pestaña por defecto
+            loginModal.classList.add('logged-in'); // Deshabilitar inputs del login modal
+        } else {
+            adminPanel.style.display = 'none';
+            loginWrapper.style.display = 'flex';
+            adminLogoutButton.style.display = 'none';
+            showAdminStep(adminLoginStep); // Go back to admin login step
+            adminUsuarioInput.value = '';
+            adminPasswordInput.value = '';
+            adminLoginError.textContent = '';
+            loginModal.classList.remove('logged-in'); // Habilitar inputs del login modal
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const storedAdminToken = localStorage.getItem('adminToken');
+        if (storedAdminToken) {
+            adminToken = storedAdminToken;
+        }
+        updateAdminUIForLoginState();
+    });
+
+    btnLoginAdmin.addEventListener('click', async () => {
+      const usuario = adminUsuarioInput.value.trim();
+      const password = adminPasswordInput.value.trim();
+      if (!usuario || !password) {
+        adminLoginError.textContent = 'Completa todos los campos.';
+        return;
+      }
+      adminLoginError.textContent = '';
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ usuario, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          adminToken = data.token;
+          localStorage.setItem('adminToken', adminToken);
+          updateAdminUIForLoginState();
+        } else {
+          // Manejo específico para el error de sesión ya iniciada para admin
+          if (response.status === 409 && data.error === 'Este administrador ya tiene una sesión activa en otro dispositivo.') {
+              adminLoginError.textContent = data.error;
+          } else {
+              adminLoginError.textContent = data.error || 'Error en el login de admin.';
+          }
+          console.error('Error API Admin Login:', data.error);
+        }
+      } catch (error) {
+        adminLoginError.textContent = 'Error de conexión con el servidor.';
+        console.error('Error de red o API Admin Login:', error);
+      }
+    });
+
+    adminLogoutButton.addEventListener('click', async () => {
+        if (!adminToken) {
+            console.warn('Intento de cerrar sesión de admin sin token.');
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/logout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                console.log(data.mensaje);
+            } else {
+                console.error('Error al cerrar sesión de admin en el backend:', data.error);
+            }
+        } catch (error) {
+            console.error('Error de red al intentar cerrar sesión de admin:', error);
+        } finally {
+            adminToken = null;
+            localStorage.removeItem('adminToken');
+            updateAdminUIForLoginState();
+            alert('Sesión de administrador cerrada.');
+        }
+    });
+
+    // Admin Forgot Password Flow
+    forgotAdminPasswordLink.addEventListener('click', () => {
+        showAdminStep(adminRequestRecoveryStep);
+        adminServerKeyInput.value = '';
+        adminRecoveryErrorDiv.textContent = '';
+    });
+
+    backToAdminLoginFromRequestBtn.addEventListener('click', () => {
+        showAdminStep(adminLoginStep);
+    });
+
+    btnRequestAdminRecoveryCode.addEventListener('click', async () => {
+        const serverKey = adminServerKeyInput.value.trim();
+        if (!serverKey) {
+            adminRecoveryErrorDiv.textContent = 'Por favor, introduce la clave secreta del servidor.';
+            return;
+        }
+        adminRecoveryErrorDiv.textContent = '';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/solicitar_recuperacion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serverKey })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                currentAdminRecoveryCode = data.mensaje.match(/ADMIN RECOVERY CODE for admin: (\w+)/)?.[1] || ''; // Extract code from message
+                showAdminStep(adminResetPasswordStep);
+                adminRecoveryCodeInput.value = '';
+                adminNewPasswordInput.value = '';
+                adminConfirmNewPasswordInput.value = '';
+                adminResetPasswordErrorDiv.textContent = '';
+                alert(data.mensaje); // Show the message about checking console
+            } else {
+                adminRecoveryErrorDiv.textContent = data.error || 'Error al solicitar código de recuperación.';
+            }
+        } catch (error) {
+            adminRecoveryErrorDiv.textContent = 'Error de conexión con el servidor.';
+            console.error('Error requesting admin recovery code:', error);
+        }
+    });
+
+    backToAdminRequestFromResetBtn.addEventListener('click', () => {
+        showAdminStep(adminRequestRecoveryStep);
+    });
+
+    // Password validation logic for Admin
+    function validatePasswordAdmin(password) {
+        const rules = {
+            length: password.length >= 8,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            number: /[0-9]/.test(password),
+            special: /[!@#$%^&*]/.test(password)
+        };
+        return rules.length && rules.lowercase && rules.uppercase && rules.number && rules.special;
+    }
+
+    function updatePasswordRulesDialogueAdmin(password) {
+        const rules = {
+            length: password.length >= 8,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            number: /[0-9]/.test(password),
+            special: /[!@#$%^&*]/.test(password)
+        };
+
+        const ruleElements = {
+            length: dialogueRuleLengthAdmin,
+            lowercase: dialogueRuleLowercaseAdmin,
+            uppercase: dialogueRuleUppercaseAdmin,
+            number: dialogueRuleNumberAdmin,
+            special: dialogueRuleSpecialAdmin
+        };
+
+        for (const rule in rules) {
+            if (ruleElements[rule]) {
+                ruleElements[rule].classList.toggle('valid', rules[rule]);
+                ruleElements[rule].classList.toggle('invalid', !rules[rule]);
+            }
+        }
+    }
+
+    // Event listeners para mostrar/ocultar y actualizar el diálogo de reglas (Admin Reset Password)
+    adminNewPasswordInput.addEventListener('focus', () => {
+        passwordRulesDialogueAdmin.style.display = 'flex';
+        updatePasswordRulesDialogueAdmin(adminNewPasswordInput.value);
+    });
+    adminNewPasswordInput.addEventListener('input', () => {
+        updatePasswordRulesDialogueAdmin(adminNewPasswordInput.value);
+    });
+    adminNewPasswordInput.addEventListener('blur', () => {
+        // Ocultar solo si el foco no está en el diálogo
+        setTimeout(() => {
+            if (!passwordRulesDialogueAdmin.contains(document.activeElement)) {
+                passwordRulesDialogueAdmin.style.display = 'none';
+            }
+        }, 100);
+    });
+    // Mantener el diálogo visible si se hace clic dentro de él
+    passwordRulesDialogueAdmin.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Evita que el blur se dispare en el input de contraseña
+    });
+
+
+    btnResetAdminPassword.addEventListener('click', async () => {
+        const recoveryCode = adminRecoveryCodeInput.value.trim();
+        const newPassword = adminNewPasswordInput.value.trim();
+        const confirmNewPassword = adminConfirmNewPasswordInput.value.trim();
+
+        if (!recoveryCode || !newPassword || !confirmNewPassword) {
+            adminResetPasswordErrorDiv.textContent = 'Por favor, completa todos los campos.';
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            adminResetPasswordErrorDiv.textContent = 'Las contraseñas no coinciden.';
+            return;
+        }
+        if (!validatePasswordAdmin(newPassword)) {
+            adminResetPasswordErrorDiv.textContent = 'La nueva contraseña no cumple con los requisitos de seguridad.';
+            return;
+        }
+        adminResetPasswordErrorDiv.textContent = '';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/restablecer_password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario: 'admin', recoveryCode, newPassword }) // Hardcode admin username
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(data.mensaje);
+                showAdminStep(adminLoginStep); // Go back to login after successful reset
+                adminUsuarioInput.value = 'admin'; // Pre-fill admin username
+                adminPasswordInput.value = '';
+                currentAdminRecoveryCode = '';
+            } else {
+                adminResetPasswordErrorDiv.textContent = data.error || 'Error al restablecer la contraseña.';
+            }
+        } catch (error) {
+            adminResetPasswordErrorDiv.textContent = 'Error de conexión con el servidor.';
+            console.error('Error resetting admin password:', error);
+        }
+    });
+
+
+    // --- GESTIÓN DE USUARIOS ---
+    const formCreateUser = document.getElementById('formCreateUser');
+    const newUsernameInput = document.getElementById('newUsername');
+    const newUserEmailInput = document.getElementById('newUserEmail'); // New email input
+    const newPasswordInput = document.getElementById('newPassword');
+    const createUserStatusDiv = document.getElementById('createUserStatus');
+    const tbodyUsers = document.getElementById('tbodyUsers');
+    const listUsersStatusDiv = document.getElementById('listUsersStatus');
+
+    // Nuevos elementos para cambiar contraseña
+    const formChangePassword = document.getElementById('formChangePassword');
+    const changePasswordUsernameInput = document.getElementById('changePasswordUsername');
+    const changeNewPasswordInput = document.getElementById('changeNewPassword');
+    const confirmNewPasswordInput = document.getElementById('confirmNewPassword');
+    const changePasswordStatusDiv = document.getElementById('changePasswordStatus');
+
+
+    formCreateUser.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const usuario = newUsernameInput.value.trim();
+      const email = newUserEmailInput.value.trim(); // Get email
+      const password = newPasswordInput.value.trim();
+
+      if (!usuario || !email || !password) { // Check for email
+        displayStatus(createUserStatusDiv, 'Completa todos los campos.', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/usuarios`, { // Usar nueva ruta de admin
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify({ usuario, password, email }), // Include email
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          displayStatus(createUserStatusDiv, data.mensaje, 'success');
+          newUsernameInput.value = '';
+          newUserEmailInput.value = ''; // Clear email
+          newPasswordInput.value = '';
+          cargarListaUsuarios(); // Recargar la lista de usuarios
+        } else {
+          // Manejo de error de token inválido/expirado
+          if (response.status === 401) {
+              displayStatus(createUserStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+              adminToken = null;
+              localStorage.removeItem('adminToken');
+              updateAdminUIForLoginState();
+          } else {
+              displayStatus(createUserStatusDiv, data.error || 'Error al crear usuario.', 'error');
+          }
+          console.error('Error API Crear Usuario:', data.error);
+        }
+      } catch (error) {
+        displayStatus(createUserStatusDiv, 'Error de conexión con el servidor.', 'error');
+        console.error('Error de red o API Crear Usuario:', error);
+      }
+    });
+
+    // Función para cambiar la contraseña de un usuario
+    formChangePassword.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const usuario = changePasswordUsernameInput.value.trim();
+        const newPassword = changeNewPasswordInput.value.trim();
+        const confirmPassword = confirmNewPasswordInput.value.trim();
+
+        if (!usuario || !newPassword || !confirmPassword) {
+            displayStatus(changePasswordStatusDiv, 'Completa todos los campos.', 'error');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            displayStatus(changePasswordStatusDiv, 'Las contraseñas no coinciden.', 'error');
+            return;
+        }
+        if (!validatePasswordAdmin(newPassword)) { // Usar la misma validación que para el admin
+            displayStatus(changePasswordStatusDiv, 'La nueva contraseña no cumple con los requisitos de seguridad.', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/usuarios/${usuario}/password`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ newPassword })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayStatus(changePasswordStatusDiv, data.mensaje, 'success');
+                changePasswordUsernameInput.value = '';
+                changeNewPasswordInput.value = '';
+                confirmNewPasswordInput.value = '';
+            } else {
+                if (response.status === 401) {
+                    displayStatus(changePasswordStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                } else {
+                    displayStatus(changePasswordStatusDiv, data.error || 'Error al cambiar la contraseña.', 'error');
+                }
+                console.error('Error API Cambiar Contraseña:', data.error);
+            }
+        } catch (error) {
+            displayStatus(changePasswordStatusDiv, 'Error de conexión con el servidor.', 'error');
+            console.error('Error de red o API Cambiar Contraseña:', error);
+        }
+    });
+
+
+    async function cargarListaUsuarios() {
+      if (!adminToken) {
+        displayStatus(listUsersStatusDiv, 'No autorizado. Inicia sesión como admin.', 'error');
+        tbodyUsers.innerHTML = '';
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/usuarios`, { // Usar nueva ruta de admin
+          headers: {
+            'Authorization': `Bearer ${adminToken}`
+          }
+        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          if (response.status === 401) {
+              displayStatus(listUsersStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+              adminToken = null;
+              localStorage.removeItem('adminToken');
+              updateAdminUIForLoginState();
+              return;
+          }
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+        const usuarios = await response.json();
+        renderListaUsuarios(usuarios);
+        displayStatus(listUsersStatusDiv, '', ''); // Limpiar mensaje de estado
+      }
+      catch (error) {
+        displayStatus(listUsersStatusDiv, `Error al cargar usuarios: ${error.message}.`, 'error');
+        console.error('Error al cargar lista de usuarios:', error);
+      }
+    }
+
+    function renderListaUsuarios(usuarios) {
+      tbodyUsers.innerHTML = '';
+      if (!Array.isArray(usuarios) || usuarios.length === 0) {
+        tbodyUsers.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ccc;">No hay usuarios registrados.</td></tr>`;
+        return;
+      }
+      // No hay IDs para ordenar aquí, solo nombres de usuario. Se mantiene el orden por defecto de la API.
+      usuarios.forEach(user => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(user.usuario)}</td>
+          <td>${escapeHtml(user.email || 'N/A')}</td> <!-- Display email -->
+          <td>
+            <button class="btn-eliminar" data-user="${escapeHtml(user.usuario)}">Eliminar</button>
+          </td>
+        `;
+        tbodyUsers.appendChild(tr);
+      });
+
+      tbodyUsers.querySelectorAll('.btn-eliminar').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const userToDelete = btn.dataset.user;
+          if (!confirm(`¿Estás seguro de eliminar al usuario ${userToDelete}? Esto eliminará también sus mensajes privados.`)) return;
+
+          try {
+            const response = await fetch(`${API_BASE_URL}/admin/usuarios/${userToDelete}`, { // Usar nueva ruta de admin
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${adminToken}`
+              }
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+              displayStatus(listUsersStatusDiv, data.mensaje, 'success');
+              cargarListaUsuarios(); // Recargar la lista
+            } else {
+              if (response.status === 403 && data.error === 'No puedes eliminar la cuenta de administrador.') {
+                  displayStatus(listUsersStatusDiv, 'No puedes eliminar la cuenta de administrador.', 'error');
+              } else if (response.status === 401) {
+                  displayStatus(listUsersStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                  adminToken = null;
+                  localStorage.removeItem('adminToken');
+                  updateAdminUIForLoginState();
+              } else {
+                  displayStatus(listUsersStatusDiv, data.error || 'Error al eliminar usuario.', 'error');
+              }
+              console.error('Error API Eliminar Usuario:', data.error);
+            }
+          } catch (error) {
+            displayStatus(listUsersStatusDiv, 'Error de conexión con el servidor.', 'error');
+            console.error('Error de red o API Eliminar Usuario:', error);
+          }
+        });
+      });
+    }
+
+    // --- GESTIÓN DE MENSAJES PÚBLICOS ---
+    const tbodyAdminPublicMessages = document.getElementById('tbodyAdminPublicMessages');
+    const publicMessagesStatusDiv = document.getElementById('publicMessagesStatus');
+
+    async function cargarMensajesPublicosAdmin() {
+      if (!adminToken) {
+        displayStatus(publicMessagesStatusDiv, 'No autorizado. Inicia sesión como admin.', 'error');
+        tbodyAdminPublicMessages.innerHTML = '';
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/mensajes`); // Esta ruta no requiere token, pero la llamamos desde admin
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          // Si hay un error 401 aquí, es porque el token de admin se envió a una ruta de usuario
+          // o porque la ruta de mensajes públicos se cambió para requerir token.
+          // Por ahora, la ruta /mensajes es pública.
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+        }
+        const mensajes = await response.json();
+        renderMensajesPublicosAdmin(mensajes);
+        displayStatus(publicMessagesStatusDiv, '', ''); // Limpiar mensaje de estado
+      } catch (error) {
+        displayStatus(publicMessagesStatusDiv, `Error al cargar mensajes públicos: ${error.message}.`, 'error');
+        console.error('Error al cargar mensajes públicos (Admin):', error);
+      }
+    }
+
+    function renderMensajesPublicosAdmin(mensajes) {
+      tbodyAdminPublicMessages.innerHTML = '';
+      if (!Array.isArray(mensajes) || mensajes.length === 0) {
+        tbodyAdminPublicMessages.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ccc;">No hay mensajes públicos.</td></tr>`;
+        return;
+      }
+      // Ordenar mensajes por ID de forma ascendente
+      mensajes.sort((a, b) => a.id - b.id); // AÑADIDO: Ordenar por ID
+
+      mensajes.forEach(msg => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${msg.id}</td>
+          <td>${escapeHtml(msg.nombre)}</td>
+          <td>${escapeHtml(msg.mensaje)}</td>
+          <td><button class="btn-eliminar" data-id="${msg.id}">Eliminar</button></td>
+        `;
+        tbodyAdminPublicMessages.appendChild(tr);
+      });
+      tbodyAdminPublicMessages.querySelectorAll('.btn-eliminar').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (!confirm(`¿Estás seguro de eliminar el mensaje ID ${id}?`)) return;
+          try {
+            const response = await fetch(`${API_BASE_URL}/admin/mensajes/${id}`, { // Usar nueva ruta de admin
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${adminToken}`
+              }
+            });
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              if (response.status === 401) {
+                  displayStatus(publicMessagesStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                  adminToken = null;
+                  localStorage.removeItem('adminToken');
+                  updateAdminUIForLoginState();
+                  return;
+              }
+              throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+            cargarMensajesPublicosAdmin();
+          } catch (error) {
+            displayStatus(publicMessagesStatusDiv, `Error al eliminar mensaje: ${error.message}.`, 'error');
+            console.error('Error al eliminar mensaje público (Admin):', error);
+          }
+        });
+      });
+    }
+
+    // --- VISOR DE CHATS PRIVADOS ---
+    const formViewPrivateChat = document.getElementById('formViewPrivateChat');
+    const userSelect1 = document.getElementById('userSelect1');
+    const userSelect2 = document.getElementById('userSelect2');
+    const chatViewerDiv = document.getElementById('chatViewer');
+    const viewChatStatusDiv = document.getElementById('viewChatStatus');
+    const btnAdminDeleteChat = document.getElementById('btnAdminDeleteChat'); // Nuevo
+
+    async function populateUserSelects() {
+        userSelect1.innerHTML = '<option value="">Selecciona Usuario 1</option>';
+        userSelect2.innerHTML = '<option value="">Selecciona Usuario 2</option>';
+        if (!adminToken) {
+            displayStatus(viewChatStatusDiv, 'No autorizado. Inicia sesión como admin.', 'error');
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/usuarios`, { // Usar nueva ruta de admin
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    displayStatus(viewChatStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+            const users = await response.json();
+            users.forEach(user => {
+                if (user.usuario.toLowerCase() === 'admin') return; // ❌ Excluir admin
+
+                const option1 = document.createElement('option');
+                option1.value = user.usuario;
+                option1.textContent = user.usuario;
+                userSelect1.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = user.usuario;
+                option2.textContent = user.usuario;
+                userSelect2.appendChild(option2);
+            });
+            displayStatus(viewChatStatusDiv, '', '');
+        } catch (error) {
+            displayStatus(viewChatStatusDiv, `Error al cargar usuarios para el chat: ${error.message}.`, 'error');
+            console.error('Error al cargar usuarios para selects:', error);
+        }
+    }
+
+    formViewPrivateChat.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const user1 = userSelect1.value;
+        const user2 = userSelect2.value;
+
+        if (!user1 || !user2) {
+            displayStatus(viewChatStatusDiv, 'Por favor, selecciona ambos usuarios.', 'error');
+            return;
+        }
+        if (user1 === user2) {
+            displayStatus(viewChatStatusDiv, 'Selecciona dos usuarios diferentes.', 'error');
+            return;
+        }
+
+        try {
+            // La ruta para admin es /api/admin/mensajes_privados
+            const response = await fetch(`${API_BASE_URL}/admin/mensajes_privados?user1=${user1}&user2=${user2}`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    displayStatus(viewChatStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+            const messages = await response.json();
+            renderPrivateChatViewer(messages, user1, user2);
+            displayStatus(viewChatStatusDiv, '', '');
+        } catch (error) {
+            displayStatus(viewChatStatusDiv, `Error al cargar el chat: ${error.message}.`, 'error');
+            console.error('Error al cargar chat privado para admin:', error);
+        }
+    });
+
+    function renderPrivateChatViewer(messages, user1, user2) {
+        chatViewerDiv.innerHTML = '';
+        if (!Array.isArray(messages) || messages.length === 0) {
+            chatViewerDiv.innerHTML = `<p style="text-align: center; color: #aaa;">No hay mensajes entre ${escapeHtml(user1)} y ${escapeHtml(user2)}.</p>`;
+            btnAdminDeleteChat.style.display = 'none'; // Ocultar si no hay mensajes
+            return;
+        }
+
+        messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        messages.forEach(msg => {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message-entry');
+            // Determinar si el mensaje es "enviado" o "recibido" desde la perspectiva del user1
+            // Esto es solo para el estilo visual en el admin panel
+            msgDiv.classList.add(msg.de === user1 ? 'sent' : 'received');
+            const time = new Date(msg.timestamp).toLocaleString();
+
+            msgDiv.innerHTML = `
+                <strong>${escapeHtml(msg.de)}</strong> <span class="timestamp">(${time})</span><br>
+                ${escapeHtml(msg.mensaje)}
+            `;
+            chatViewerDiv.appendChild(msgDiv);
+        });
+        chatViewerDiv.scrollTop = chatViewerDiv.scrollHeight; // Scroll al final
+        btnAdminDeleteChat.style.display = 'block'; // Mostrar el botón si hay mensajes
+    }
+
+    // Event listener para el nuevo botón de eliminar chat del admin
+    btnAdminDeleteChat.addEventListener('click', async () => {
+        const user1 = userSelect1.value;
+        const user2 = userSelect2.value;
+
+        if (!user1 || !user2) {
+            displayStatus(viewChatStatusDiv, 'Por favor, selecciona ambos usuarios para eliminar el chat.', 'error');
+            return;
+        }
+        if (user1 === user2) {
+            displayStatus(viewChatStatusDiv, 'Selecciona dos usuarios diferentes para eliminar el chat.', 'error');
+            return;
+        }
+
+        if (!confirm(`¿Estás seguro de eliminar TODA la conversación entre ${user1} y ${user2}? Esta acción es irreversible y afectará a ambos usuarios.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/mensajes_privados/chat/${user1}/${user2}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    displayStatus(viewChatStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+
+            displayStatus(viewChatStatusDiv, `Conversación entre ${user1} y ${user2} eliminada con éxito.`, 'success');
+            chatViewerDiv.innerHTML = '<p style="text-align: center; color: #aaa;">El historial de chat aparecerá aquí.</p>'; // Limpiar visor
+            btnAdminDeleteChat.style.display = 'none'; // Ocultar el botón después de eliminar
+        } catch (error) {
+            displayStatus(viewChatStatusDiv, `Error al eliminar el chat: ${error.message}.`, 'error');
+            console.error('Error al eliminar chat completo por admin:', error);
+        }
+    });
+
+    // --- GESTIÓN DE SOLICITUDES DE CLIENTES (NUEVAS) ---
+    const tbodySolicitudes = document.getElementById('tbodySolicitudes');
+    const solicitudesStatusDiv = document.getElementById('solicitudesStatus');
+    const adminResponseModal = document.getElementById('adminResponseModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const adminResponseMessageInput = document.getElementById('adminResponseMessage');
+    const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+    const modalCancelBtn = document.getElementById('modalCancelBtn');
+
+    let currentRequestId = null;
+    let currentRequestAction = null; // 'aprobar' o 'rechazar'
+
+    async function cargarSolicitudesClientes() {
+        if (!adminToken) {
+            displayStatus(solicitudesStatusDiv, 'No autorizado. Inicia sesión como admin.', 'error');
+            tbodySolicitudes.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ccc;">Inicia sesión para ver las solicitudes.</td></tr>';
+            return;
+        }
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/solicitudes`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    displayStatus(solicitudesStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                    return;
+                }
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+
+            const solicitudes = await response.json();
+            renderSolicitudesClientes(solicitudes);
+            displayStatus(solicitudesStatusDiv, '', ''); // Limpiar mensaje de estado
+        } catch (error) {
+            displayStatus(solicitudesStatusDiv, `Error al cargar solicitudes: ${error.message}.`, 'error');
+            console.error('Error al cargar solicitudes de clientes:', error);
+        }
+    }
+
+    function renderSolicitudesClientes(solicitudes) {
+        tbodySolicitudes.innerHTML = '';
+        if (!Array.isArray(solicitudes) || solicitudes.length === 0) {
+            tbodySolicitudes.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ccc;">No hay solicitudes de clientes.</td></tr>';
+            return;
+        }
+        // Ordenar solicitudes por ID de forma ascendente
+        solicitudes.sort((a, b) => a.id - b.id);
+
+        solicitudes.forEach((sol, index) => { // Añadir index para el ID consecutivo
+            const tr = document.createElement('tr');
+            const fechaFormateada = new Date(sol.fecha).toLocaleString();
+            let estadoClass = '';
+            if (sol.estado === 'Pendiente') estadoClass = 'estado-pendiente';
+            else if (sol.estado === 'Aprobada') estadoClass = 'estado-aprobada';
+            else if (sol.estado === 'Rechazada') estadoClass = 'estado-rechazada';
+
+            const respuestaAdminHtml = sol.respuestaAdmin ?
+                `<div class="respuesta-admin"><strong>Respuesta:</strong> ${escapeHtml(sol.respuestaAdmin)}</div>` :
+                '';
+
+            const accionesHtml = sol.estado === 'Pendiente' ?
+                `
+                <button class="btn-aprobar" data-id="${sol.id}">Aprobar</button>
+                <button class="btn-rechazar" data-id="${sol.id}">Rechazar</button>
+                <button class="btn-eliminar-solicitud" data-id="${sol.id}">Eliminar</button>
+                ` :
+                `
+                <button class="btn-eliminar-solicitud" data-id="${sol.id}">Eliminar</button>
+                `;
+
+            tr.innerHTML = `
+                <td>${index + 1}</td> <!-- Mostrar índice consecutivo -->
+                <td>${escapeHtml(sol.usuario)}</td>
+                <td>${escapeHtml(sol.email)}</td>
+                <td>${escapeHtml(sol.mensaje)}</td>
+                <td>${fechaFormateada}</td>
+                <td class="${estadoClass}">${escapeHtml(sol.estado)}</td>
+                <td>${respuestaAdminHtml}</td>
+                <td class="acciones-solicitud">${accionesHtml}</td>
+            `;
+            tbodySolicitudes.appendChild(tr);
+        });
+
+        // Añadir event listeners a los botones
+        tbodySolicitudes.querySelectorAll('.btn-aprobar').forEach(btn => {
+            btn.addEventListener('click', () => openResponseModal(btn.dataset.id, 'aprobar'));
+        });
+        tbodySolicitudes.querySelectorAll('.btn-rechazar').forEach(btn => {
+            btn.addEventListener('click', () => openResponseModal(btn.dataset.id, 'rechazar'));
+        });
+        tbodySolicitudes.querySelectorAll('.btn-eliminar-solicitud').forEach(btn => {
+            btn.addEventListener('click', () => eliminarSolicitud(btn.dataset.id));
+        });
+    }
+
+    function openResponseModal(id, action) {
+        currentRequestId = id;
+        currentRequestAction = action;
+        modalTitle.textContent = action === 'aprobar' ? 'Aprobar Solicitud' : 'Rechazar Solicitud';
+        adminResponseMessageInput.value = ''; // Limpiar el campo de texto
+        adminResponseModal.style.display = 'flex';
+    }
+
+    modalCancelBtn.addEventListener('click', () => {
+        adminResponseModal.style.display = 'none';
+        currentRequestId = null;
+        currentRequestAction = null;
+    });
+
+    modalConfirmBtn.addEventListener('click', async () => {
+        const respuestaAdmin = adminResponseMessageInput.value.trim();
+        if (!respuestaAdmin) {
+            alert('Por favor, introduce un mensaje de respuesta.');
+            return;
+        }
+
+        let url = '';
+        let method = 'PUT';
+
+        if (currentRequestAction === 'aprobar') {
+            url = `${API_BASE_URL}/admin/solicitudes/${currentRequestId}/aprobar`;
+        } else if (currentRequestAction === 'rechazar') {
+            url = `${API_BASE_URL}/admin/solicitudes/${currentRequestId}/rechazar`;
+        } else {
+            return; // No debería ocurrir
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ respuestaAdmin })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayStatus(solicitudesStatusDiv, data.mensaje, 'success');
+                adminResponseModal.style.display = 'none';
+                cargarSolicitudesClientes(); // Recargar la lista
+            } else {
+                if (response.status === 401) {
+                    displayStatus(solicitudesStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                } else {
+                    displayStatus(solicitudesStatusDiv, data.error || `Error al ${currentRequestAction} la solicitud.`, 'error');
+                }
+                console.error(`Error API ${currentRequestAction} Solicitud:`, data.error);
+            }
+        } catch (error) {
+            displayStatus(solicitudesStatusDiv, 'Error de conexión con el servidor.', 'error');
+            console.error(`Error de red o API ${currentRequestAction} Solicitud:`, error);
+        } finally {
+            currentRequestId = null;
+            currentRequestAction = null;
+        }
+    });
+
+    async function eliminarSolicitud(id) {
+        if (!confirm(`¿Estás seguro de eliminar la solicitud ID ${id}?`)) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/solicitudes/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                displayStatus(solicitudesStatusDiv, data.mensaje, 'success');
+                cargarSolicitudesClientes(); // Recargar la lista
+            } else {
+                if (response.status === 401) {
+                    displayStatus(solicitudesStatusDiv, 'Tu sesión de administrador ha expirado. Por favor, inicia sesión de nuevo.', 'error');
+                    adminToken = null;
+                    localStorage.removeItem('adminToken');
+                    updateAdminUIForLoginState();
+                } else {
+                    displayStatus(solicitudesStatusDiv, data.error || 'Error al eliminar la solicitud.', 'error');
+                }
+                console.error('Error API Eliminar Solicitud:', error);
+            }
+        } catch (error) {
+            displayStatus(solicitudesStatusDiv, 'Error de conexión con el servidor.', 'error');
+            console.error('Error de red o API Eliminar Solicitud:', error);
+        }
+    }
+
+
+    // --- FUNCIONES AUXILIARES GENERALES ---
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function displayStatus(element, message, type) {
+        element.textContent = message;
+        element.className = 'status-message'; // Reset classes
+        if (type) {
+            element.classList.add(type);
+        }
+        // Clear message after some time
+        if (message) {
+            setTimeout(() => {
+                element.textContent = '';
+                element.className = 'status-message';
+            }, 5000);
+        }
+    }
+  </script>
+</body>
+</html>

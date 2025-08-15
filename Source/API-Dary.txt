@@ -1,0 +1,978 @@
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import bcrypt from 'bcrypt';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import crypto from 'crypto';
+import { existsSync, mkdirSync } from 'fs';
+import nodemailer from 'nodemailer'; // Importar nodemailer
+
+const app = express();
+const PORT = 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DATA_DIR = path.join(__dirname, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'usuarios.txt');
+const ADMIN_FILE = path.join(DATA_DIR, 'admin.txt');
+const MSGS_PUBLIC_FILE = path.join(DATA_DIR, 'mensajes.txt');
+const MSGS_PRIV_FILE = path.join(DATA_DIR, 'mensajes_privados.txt');
+const SOLICITUDES_FILE = path.join(DATA_DIR, 'solicitudes.txt'); // Nuevo archivo para solicitudes
+
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// --- Configuración de Nodemailer para envío de correos ---
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com', // Por ejemplo, 'smtp.gmail.com' para Gmail
+  port: 465, // Puerto SMTP, comúnmente 587 para STARTTLS o 465 para SSL
+  secure: true, // true para 465, false para otros puertos (como 587)
+  auth: {
+    user: 'darysanjuan0@gmail.com', // Tu dirección de correo electrónico
+    pass: 'cdqlzwhmwhlleije' // Tu contraseña de correo electrónico
+  },
+  tls: {
+    rejectUnauthorized: false // Solo si tienes problemas con certificados autofirmados, no recomendado en producción
+  }
+});
+
+// Verificar la conexión del transporter (opcional, pero útil para depurar)
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("Error al conectar con el servidor SMTP:", error);
+  } else {
+    console.log("Servidor SMTP listo para enviar mensajes.");
+  }
+});
+
+
+// Middleware para servir archivos estáticos desde /api
+app.use('/admin-template', express.static(path.join(__dirname, 'admin-template')));
+
+// --- Middleware ---
+app.use(cors({
+  origin: ['http://localhost' , 'http://localhost:3000'], // Ajusta según tu dominio y protocolo
+  methods: ['GET', 'POST', 'DELETE', 'PUT'], // Añadido PUT para marcar mensajes como leídos
+}));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Servir frontend estático
+app.use(express.static('public'));
+
+// Ruta para servir index.html en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
+
+// --- Funciones auxiliares ---
+async function leerArchivoJSON(pathArchivo) {
+  try {
+    const content = await fs.readFile(pathArchivo, 'utf-8');
+    if (!content.trim()) return [];
+    return JSON.parse(content);
+  } catch (e) {
+    if (e.code === 'ENOENT') return [];
+    console.error(`Error al leer ${pathArchivo}:`, e);
+    return [];
+  }
+}
+
+async function escribirArchivoJSON(pathArchivo, data) {
+  await fs.writeFile(pathArchivo, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+async function obtenerUsuarios() {
+  return await leerArchivoJSON(USERS_FILE);
+}
+
+async function guardarUsuarios(usuarios) {
+  await escribirArchivoJSON(USERS_FILE, usuarios);
+}
+
+async function obtenerAdmin() {
+  try {
+    const content = await fs.readFile(ADMIN_FILE, 'utf-8');
+    if (!content.trim()) return null;
+    return JSON.parse(content);
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    console.error(`Error al leer ${ADMIN_FILE}:`, e);
+    return null;
+  }
+}
+
+async function guardarAdmin(adminObj) {
+  await fs.writeFile(ADMIN_FILE, JSON.stringify(adminObj, null, 2), 'utf-8');
+}
+
+async function obtenerMensajesPublicos() {
+  return await leerArchivoJSON(MSGS_PUBLIC_FILE);
+}
+
+async function guardarMensajesPublicos(mensajes) {
+  await escribirArchivoJSON(MSGS_PUBLIC_FILE, mensajes);
+}
+
+async function obtenerMensajesPrivados() {
+  return await leerArchivoJSON(MSGS_PRIV_FILE);
+}
+
+async function guardarMensajesPrivados(mensajes) {
+  await escribirArchivoJSON(MSGS_PRIV_FILE, mensajes);
+}
+
+// Funciones auxiliares para solicitudes
+async function obtenerSolicitudes() {
+  return await leerArchivoJSON(SOLICITUDES_FILE);
+}
+
+async function guardarSolicitudes(solicitudes) {
+  await escribirArchivoJSON(SOLICITUDES_FILE, solicitudes);
+}
+
+// --- Autenticación de Usuarios y Admin ---
+// activeUserTokens: Map<token, { usuario, expiryTime }>
+const activeUserTokens = new Map();
+// activeUserSessions: Map<usuario, token> - Para verificar si un usuario ya tiene una sesión activa
+const activeUserSessions = new Map(); // Stores the *current* active token for a user
+
+// activeAdminTokens: Map<token, { usuario, expiryTime }>
+// activeAdminSessions: Map<usuario, token> - Para la sesión única de admin (si se desea)
+const activeAdminTokens = new Map();
+const activeAdminSessions = new Map(); // Reintroducido para sesión única de admin
+
+// --- Recuperación de Contraseña ---
+// recoveryCodes: Map<email, { code, expiryTime, used }>
+const recoveryCodes = new Map();
+const ADMIN_RECOVERY_SECRET = 'Dary20240842'; // Clave secreta para recuperación de admin
+
+// Función para limpiar tokens expirados periódicamente
+setInterval(() => {
+  const now = Date.now();
+  for (let [token, data] of activeUserTokens.entries()) {
+    if (data.expiryTime < now) {
+      activeUserTokens.delete(token);
+      if (activeUserSessions.get(data.usuario) === token) {
+        activeUserSessions.delete(data.usuario);
+      }
+    }
+  }
+  // Limpiar tokens de admin expirados
+  for (let [token, data] of activeAdminTokens.entries()) {
+    if (data.expiryTime < now) {
+      activeAdminTokens.delete(token);
+      // Si este token era el activo para el admin, también limpiarlo de activeAdminSessions
+      if (data.usuario && activeAdminSessions.get(data.usuario) === token) { // Añadido data.usuario check
+        activeAdminSessions.delete(data.usuario);
+      }
+    }
+  }
+
+  // Limpiar códigos de recuperación expirados o usados
+  for (let [email, data] of recoveryCodes.entries()) {
+    if (data.expiryTime < now || data.used) {
+      recoveryCodes.delete(email);
+    }
+  }
+}, 5 * 60 * 1000); // Cada 5 minutos
+
+// Middleware para validar token de usuario
+function validarUserToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No autorizado: Token no proporcionado.' });
+  }
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'No autorizado: Formato de token inválido.' });
+  }
+
+  const tokenData = activeUserTokens.get(token);
+  if (!tokenData || tokenData.expiryTime < Date.now()) {
+    if (tokenData && activeUserSessions.get(tokenData.usuario) === token) {
+      activeUserSessions.delete(tokenData.usuario);
+    }
+    activeUserTokens.delete(token);
+    return res.status(401).json({ error: 'No autorizado: Token inválido o expirado.' });
+  }
+
+  if (activeUserSessions.get(tokenData.usuario) !== token) {
+    activeUserTokens.delete(token);
+    return res.status(401).json({ error: 'Tu sesión ha sido invalidada porque se inició sesión en otro lugar.' });
+  }
+
+  req.currentUser = tokenData.usuario;
+  next();
+}
+
+// Middleware para validar token de admin
+function validarAdminToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No autorizado: Token no proporcionado.' });
+  }
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'No autorizado: Formato de token inválido.' });
+  }
+
+  const tokenData = activeAdminTokens.get(token);
+  if (!tokenData) {
+    return res.status(401).json({ error: 'No autorizado: Token inválido o no reconocido.' });
+  }
+
+  if (tokenData.expiryTime < Date.now()) {
+    activeAdminTokens.delete(token); // Limpiar token expirado
+    if (tokenData.usuario && activeAdminSessions.get(tokenData.usuario) === token) { // Limpiar de sesiones activas si era el token actual
+      activeAdminSessions.delete(tokenData.usuario);
+    }
+    return res.status(401).json({ error: 'No autorizado: Token de admin expirado.' });
+  }
+
+  // Reintroducido: Verificar si este token es el token activo para este admin
+  if (tokenData.usuario && activeAdminSessions.get(tokenData.usuario) !== token) {
+    activeAdminTokens.delete(token); // Invalida el token antiguo
+    return res.status(401).json({ error: 'No autorizado: Tu sesión de administrador ha sido reemplazada.' });
+  }
+
+  req.adminUser = tokenData.usuario;
+  next();
+}
+
+// --- Rutas API ---
+
+// Login admin (genera token)
+app.post('/admin/login', async (req, res) => {
+  const { usuario, password } = req.body;
+  if (!usuario || !password) {
+    return res.status(400).json({ success: false, error: 'Faltan datos.' });
+  }
+
+  const admin = await obtenerAdmin();
+  if (!admin || admin.usuario !== usuario) {
+    return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos.' });
+  }
+
+  const match = await bcrypt.compare(password, admin.passwordHash);
+  if (!match) {
+    return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos.' });
+  }
+
+  // Lógica para RECHAZAR si ya hay sesión activa de admin
+  if (activeAdminSessions.has(usuario)) {
+    const existingToken = activeAdminSessions.get(usuario);
+    const existingTokenData = activeAdminTokens.get(existingToken);
+
+    if (existingTokenData && existingTokenData.expiryTime > Date.now()) {
+      return res.status(409).json({ success: false, error: 'Este administrador ya tiene una sesión activa en otro dispositivo.' });
+    } else {
+      // Si el token en activeAdminSessions está expirado o es inválido, limpiarlo
+      activeAdminTokens.delete(existingToken);
+      activeAdminSessions.delete(usuario);
+      console.log(`Sesión expirada de admin ${usuario} limpiada antes de nuevo login.`);
+    }
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiryTime = Date.now() + 3600 * 1000; // 1 hora de validez
+  activeAdminTokens.set(token, { usuario, expiryTime });
+  activeAdminSessions.set(usuario, token); // Registrar el token activo para este admin
+
+  return res.json({ success: true, token });
+});
+
+// Logout admin (invalida token y sesión)
+app.post('/admin/logout', validarAdminToken, (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader.split(' ')[1];
+  const adminData = activeAdminTokens.get(token);
+
+  if (adminData) {
+    activeAdminTokens.delete(token);
+    if (adminData.usuario && activeAdminSessions.get(adminData.usuario) === token) {
+      activeAdminSessions.delete(adminData.usuario);
+    }
+  }
+  res.json({ success: true, mensaje: 'Sesión de administrador cerrada exitosamente.' });
+});
+
+// --- Rutas de Recuperación de Contraseña de Administrador ---
+app.post('/admin/solicitar_recuperacion', async (req, res) => {
+  const { serverKey } = req.body;
+
+  if (serverKey !== ADMIN_RECOVERY_SECRET) {
+    return res.status(403).json({ success: false, error: 'Clave de servidor incorrecta.' });
+  }
+
+  const admin = await obtenerAdmin();
+  if (!admin) {
+    return res.status(404).json({ success: false, error: 'Cuenta de administrador no encontrada.' });
+  }
+
+  // Generar un token de recuperación temporal para el admin
+  const recoveryToken = crypto.randomBytes(32).toString('hex');
+  const expiryTime = Date.now() + 5 * 60 * 1000; // 5 minutos de validez
+  recoveryCodes.set(admin.usuario, { code: recoveryToken, expiryTime, used: false, type: 'admin' });
+
+  console.log(`ADMIN RECOVERY CODE for ${admin.usuario}: ${recoveryToken}`); // Simula el envío por correo
+  res.json({ success: true, mensaje: 'Se ha generado un token de recuperación. Por favor, revisa la consola del servidor para obtenerlo (simulación de envío de correo).' });
+});
+
+app.post('/admin/restablecer_password', async (req, res) => {
+  const { usuario, recoveryCode, newPassword } = req.body;
+
+  if (!usuario || !recoveryCode || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Faltan datos.' });
+  }
+
+  const storedCodeData = recoveryCodes.get(usuario);
+
+  if (!storedCodeData || storedCodeData.code !== recoveryCode || storedCodeData.expiryTime < Date.now() || storedCodeData.used || storedCodeData.type !== 'admin') {
+    return res.status(401).json({ success: false, error: 'Código de recuperación inválido o expirado.' });
+  }
+
+  const admin = await obtenerAdmin();
+  if (!admin || admin.usuario !== usuario) {
+    return res.status(404).json({ success: false, error: 'Usuario administrador no encontrado.' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  admin.passwordHash = passwordHash;
+  await guardarAdmin(admin);
+
+  storedCodeData.used = true; // Marcar el código como usado
+
+  // Invalidar cualquier sesión activa del admin
+  if (activeAdminSessions.has(usuario)) {
+    const tokenToDelete = activeAdminSessions.get(usuario);
+    activeAdminTokens.delete(tokenToDelete);
+    activeAdminSessions.delete(usuario);
+  }
+
+  res.json({ success: true, mensaje: 'Contraseña de administrador restablecida exitosamente.' });
+});
+
+
+// Registro usuario
+app.post('/usuarios/registro', async (req, res) => {
+  const { usuario, password, email } = req.body; // Añadir email
+  if (!usuario || !password || !email) return res.status(400).json({ success: false, error: 'Faltan datos.' });
+
+  const usuarios = await obtenerUsuarios();
+  if (usuarios.find(u => u.usuario === usuario)) {
+    return res.status(400).json({ success: false, error: 'El usuario ya existe.' });
+  }
+  if (usuarios.find(u => u.email === email)) { // Verificar email único
+    return res.status(400).json({ success: false, error: 'El email ya está registrado.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  usuarios.push({ usuario, passwordHash, email }); // Guardar email
+  await guardarUsuarios(usuarios);
+
+  return res.status(201).json({ success: true, mensaje: 'Usuario creado exitosamente.' });
+});
+
+// Login usuario (RECHAZA si ya hay sesión activa)
+app.post('/usuarios/login', async (req, res) => {
+  const { usuario, password } = req.body;
+  if (!usuario || !password) return res.status(400).json({ success: false, error: 'Faltan datos.' });
+
+  const usuarios = await obtenerUsuarios();
+  const user = usuarios.find(u => u.usuario === usuario);
+  if (!user) return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos.' });
+
+  const match = await bcrypt.compare(password, user.passwordHash);
+  if (!match) return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos.' });
+
+  // --- Lógica para RECHAZAR si ya hay sesión activa ---
+  if (activeUserSessions.has(usuario)) {
+    const existingToken = activeUserSessions.get(usuario);
+    const existingTokenData = activeUserTokens.get(existingToken);
+
+    if (existingTokenData && existingTokenData.expiryTime > Date.now()) {
+      return res.status(409).json({ success: false, error: 'Este usuario ya tiene una sesión activa en otro dispositivo.' });
+    } else {
+      activeUserTokens.delete(existingToken);
+      activeUserSessions.delete(usuario);
+      console.log(`Sesión expirada de ${usuario} limpiada antes de nuevo login.`);
+    }
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiryTime = Date.now() + 3600 * 1000; // 1 hora de validez
+  activeUserTokens.set(token, { usuario, expiryTime });
+  activeUserSessions.set(usuario, token);
+
+  return res.json({ success: true, usuario, token });
+});
+
+// Logout usuario (invalida token y sesión)
+app.post('/usuarios/logout', validarUserToken, (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader.split(' ')[1];
+  const userData = activeUserTokens.get(token);
+
+  if (userData) {
+    activeUserTokens.delete(token);
+    if (activeUserSessions.get(userData.usuario) === token) {
+      activeUserSessions.delete(userData.usuario);
+    }
+  }
+  res.json({ success: true, mensaje: 'Sesión cerrada exitosamente.' });
+});
+
+// --- Rutas de Recuperación de Contraseña de Usuario ---
+app.post('/usuarios/solicitar_recuperacion', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Falta el email.' });
+  }
+
+  const usuarios = await obtenerUsuarios();
+  const user = usuarios.find(u => u.email === email);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'Email no registrado.' });
+  }
+
+  const recoveryCode = Math.floor(100000 + Math.random() * 900000).toString(); // Código de 6 dígitos
+  const expiryTime = Date.now() + 5 * 60 * 1000; // 5 minutos de validez
+  recoveryCodes.set(email, { code: recoveryCode, expiryTime, used: false, usuario: user.usuario, type: 'user' });
+
+  // --- Envío de correo electrónico ---
+  const mailOptions = {
+    from: 'darysanjuan0@gmail.com', // Tu dirección de correo electrónico
+    to: email,
+    subject: 'Código de Recuperación de Contraseña',
+    text: `Tu código de recuperación es: ${recoveryCode}\nEste código es válido por 5 minutos.`
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Código de recuperación enviado a ${email}`);
+    res.json({ success: true, mensaje: 'Se ha enviado un código de recuperación a tu email.' });
+  } catch (error) {
+    console.error('Error al enviar el correo electrónico:', error);
+    res.status(500).json({ success: false, error: 'Error al enviar el código de recuperación. Inténtalo de nuevo más tarde.' });
+  }
+});
+
+app.post('/usuarios/verificar_codigo', async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) {
+    return res.status(400).json({ success: false, error: 'Faltan datos.' });
+  }
+
+  const storedCodeData = recoveryCodes.get(email);
+
+  if (!storedCodeData || storedCodeData.code !== code || storedCodeData.expiryTime < Date.now() || storedCodeData.used || storedCodeData.type !== 'user') {
+    return res.status(401).json({ success: false, error: 'Código inválido o expirado.' });
+  }
+
+  res.json({ success: true, mensaje: 'Código verificado. Puedes restablecer tu contraseña.', usuario: storedCodeData.usuario });
+});
+
+app.post('/usuarios/restablecer_password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Faltan datos.' });
+  }
+
+  const storedCodeData = recoveryCodes.get(email);
+
+  if (!storedCodeData || storedCodeData.code !== code || storedCodeData.expiryTime < Date.now() || storedCodeData.used || storedCodeData.type !== 'user') {
+    return res.status(401).json({ success: false, error: 'Código inválido o expirado.' });
+  }
+
+  let usuarios = await obtenerUsuarios();
+  const userIndex = usuarios.findIndex(u => u.email === email);
+
+  if (userIndex === -1) {
+    return res.status(404).json({ success: false, error: 'Usuario no encontrado.' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  usuarios[userIndex].passwordHash = passwordHash;
+  await guardarUsuarios(usuarios);
+
+  storedCodeData.used = true; // Marcar el código como usado
+
+  // Invalidar cualquier sesión activa para el usuario cuya contraseña fue cambiada
+  if (activeUserSessions.has(usuarios[userIndex].usuario)) {
+    const tokenToInvalidate = activeUserSessions.get(usuarios[userIndex].usuario);
+    activeUserTokens.delete(tokenToInvalidate);
+    activeUserSessions.delete(usuarios[userIndex].usuario);
+  }
+
+  res.json({ success: true, mensaje: 'Contraseña restablecida exitosamente.' });
+});
+
+
+// --- RUTAS PARA USUARIOS NORMALES (index.html) ---
+
+// Obtener lista usuarios (solo nombres) - Para chat privado en index.html
+// MODIFICADO: No incluir al admin en la lista de usuarios para chat privado
+app.get('/usuarios', validarUserToken, async (req, res) => {
+  const usuarios = await obtenerUsuarios();
+  const allUsers = usuarios.map(u => ({ usuario: u.usuario }));
+  res.json(allUsers);
+});
+
+// Mensajes públicos: GET (no requiere autenticación)
+app.get('/mensajes', async (req, res) => {
+  const mensajes = await obtenerMensajesPublicos();
+  res.json(mensajes);
+});
+
+// Mensajes públicos: POST (no requiere autenticación)
+app.post('/mensajes', async (req, res) => {
+  const { nombre, mensaje } = req.body;
+  if (!nombre || !mensaje) return res.status(400).json({ error: 'Faltan datos.' });
+
+  const mensajes = await obtenerMensajesPublicos();
+  const newId = mensajes.length > 0 ? Math.max(...mensajes.map(m => m.id)) + 1 : 1;
+  const nuevo = { id: newId, nombre, mensaje };
+  mensajes.push(nuevo);
+  await guardarMensajesPublicos(mensajes);
+
+  res.status(201).json({ success: true, mensaje: nuevo });
+});
+
+// Mensajes públicos: DELETE (requiere token de usuario, pero solo para el que lo creó o admin)
+// Para simplificar, lo dejamos con validarUserToken, pero el frontend de usuario no tiene botón de eliminar.
+// El botón de eliminar en el frontend de usuario se eliminó en una versión anterior.
+// Si se reintroduce, necesitaría lógica para verificar si el usuario es el autor.
+// Para que el admin pueda eliminar, crearemos una ruta específica para admin.
+app.delete('/mensajes/:id', validarUserToken, async (req, res) => { // Vuelve a usar validarUserToken
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido.' });
+
+  let mensajes = await obtenerMensajesPublicos();
+  const mensajeAEliminar = mensajes.find(m => m.id === id);
+
+  if (!mensajeAEliminar) {
+    return res.status(404).json({ error: 'Mensaje no encontrado.' });
+  }
+
+  // Solo el autor del mensaje puede eliminarlo (o un admin, pero el admin usará otra ruta)
+  if (req.currentUser !== mensajeAEliminar.nombre) {
+    return res.status(403).json({ error: 'No tienes permiso para eliminar este mensaje.' });
+  }
+
+  mensajes = mensajes.filter(m => m.id !== id);
+  mensajes = mensajes.map((msg, index) => ({ ...msg, id: index + 1 })); // Reorganizar IDs
+
+  await guardarMensajesPublicos(mensajes);
+  res.json({ success: true, mensaje: 'Mensaje eliminado y IDs reorganizados.' });
+});
+
+
+// Mensajes privados: GET para usuario (solo mensajes donde el usuario es 'de' o 'para' y no están eliminados para él)
+app.get('/mensajes_privados/:usuario', validarUserToken, async (req, res) => {
+  const requestedUser = req.params.usuario;
+  if (req.currentUser !== requestedUser) {
+    return res.status(403).json({ error: 'Acceso denegado: No puedes ver los mensajes de otro usuario.' });
+  }
+
+  const mensajesPriv = await obtenerMensajesPrivados();
+  const filtrados = mensajesPriv.filter(m =>
+    (m.de === requestedUser || m.para === requestedUser) &&
+    (!m.deletedFor || !m.deletedFor.includes(requestedUser)) // Filtrar mensajes eliminados para el usuario
+  );
+  res.json(filtrados);
+});
+
+// Mensajes privados: GET para verificar nuevos mensajes de un remitente específico
+app.get('/mensajes_privados/nuevos/:usuarioActual/:usuarioRemitente', validarUserToken, async (req, res) => {
+  const { usuarioActual, usuarioRemitente } = req.params;
+
+  if (req.currentUser !== usuarioActual) {
+    return res.status(403).json({ error: 'Acceso denegado: No puedes verificar mensajes para otro usuario.' });
+  }
+
+  const mensajesPriv = await obtenerMensajesPrivados();
+  const nuevosMensajes = mensajesPriv.filter(m =>
+    m.para === usuarioActual && m.de === usuarioRemitente && !m.leido &&
+    (!m.deletedFor || !m.deletedFor.includes(usuarioActual)) // No contar como nuevos si ya están eliminados para el usuario
+  );
+
+  res.json({ tieneNuevos: nuevosMensajes.length > 0, cantidad: nuevosMensajes.length, remitente: usuarioRemitente });
+});
+
+
+// Mensajes privados: POST enviar mensaje privado
+app.post('/mensajes_privados', validarUserToken, async (req, res) => {
+  const { de, para, mensaje } = req.body;
+  if (req.currentUser !== de) {
+    return res.status(403).json({ error: 'Acceso denegado: No puedes enviar mensajes como otro usuario.' });
+  }
+  if (!de || !para || !mensaje) return res.status(400).json({ error: 'Faltan datos.' });
+
+  const usuarios = await obtenerUsuarios();
+  const admin = await obtenerAdmin(); // Se mantiene para verificar si el admin es el destino
+  const existeUsuario = usuarios.some(u => u.usuario === para) || (admin && para === admin.usuario);
+  if (!existeUsuario) return res.status(404).json({ error: 'Usuario destino no encontrado.' });
+
+  const mensajesPriv = await obtenerMensajesPrivados();
+  // Añadir el campo 'leido' por defecto a false
+  const nuevo = { id: Date.now(), de, para, mensaje, timestamp: new Date().toISOString(), leido: false, deletedFor: [] }; // Inicializar deletedFor
+  mensajesPriv.push(nuevo);
+  await guardarMensajesPrivados(mensajesPriv);
+
+  res.status(201).json({ success: true, mensaje: nuevo });
+});
+
+// Mensajes privados: PUT para marcar mensajes como leídos
+app.put('/mensajes_privados/marcar_leidos/:usuarioActual/:usuarioRemitente', validarUserToken, async (req, res) => {
+  const { usuarioActual, usuarioRemitente } = req.params;
+
+  if (req.currentUser !== usuarioActual) {
+    return res.status(403).json({ error: 'Acceso denegado: No puedes marcar mensajes para otro usuario.' });
+  }
+
+  let mensajesPriv = await obtenerMensajesPrivados();
+  let cambiosRealizados = false;
+
+  mensajesPriv = mensajesPriv.map(m => {
+    if (m.para === usuarioActual && m.de === usuarioRemitente && !m.leido &&
+        (!m.deletedFor || !m.deletedFor.includes(usuarioActual))) { // Solo marcar como leído si no está eliminado para el usuario
+      cambiosRealizados = true;
+      return { ...m, leido: true };
+    }
+    return m;
+  });
+
+  if (cambiosRealizados) {
+    await guardarMensajesPrivados(mensajesPriv);
+    res.json({ success: true, mensaje: 'Mensajes marcados como leídos.' });
+  } else {
+    res.json({ success: true, mensaje: 'No hay mensajes nuevos que marcar como leídos.' });
+  }
+});
+
+
+// Mensajes privados: DELETE chat completo entre dos usuarios
+app.delete('/mensajes_privados/chat/:user1/:user2', validarUserToken, async (req, res) => {
+  const { user1, user2 } = req.params;
+
+  if (req.currentUser !== user1 && req.currentUser !== user2) {
+    return res.status(403).json({ error: 'Acceso denegado: No puedes eliminar chats de otros usuarios.' });
+  }
+
+  let mensajesPriv = await obtenerMensajesPrivados();
+  let cambiosRealizados = false;
+
+  mensajesPriv = mensajesPriv.map(m => {
+    // Si el mensaje es parte de la conversación y no ha sido eliminado para el usuario actual
+    if (((m.de === user1 && m.para === user2) || (m.de === user2 && m.para === user1)) &&
+        (!m.deletedFor || !m.deletedFor.includes(req.currentUser))) {
+
+      // Inicializar deletedFor si no existe
+      if (!m.deletedFor) {
+        m.deletedFor = [];
+      }
+      m.deletedFor.push(req.currentUser);
+      cambiosRealizados = true;
+    }
+    return m;
+  });
+
+  if (!cambiosRealizados) {
+    return res.status(404).json({ error: 'No se encontraron mensajes para eliminar o ya estaban eliminados para este usuario.' });
+  }
+
+  await guardarMensajesPrivados(mensajesPriv);
+  res.json({ success: true, mensaje: 'Conversación eliminada exitosamente para tu vista.' });
+});
+
+// --- RUTAS PARA SOLICITUDES DE CONTACTO (NUEVAS) ---
+
+// Enviar una nueva solicitud de contacto
+app.post('/solicitudes', validarUserToken, async (req, res) => {
+  const { email, mensaje } = req.body;
+  const usuario = req.currentUser; // El usuario que envía la solicitud
+
+  if (!usuario || !email || !mensaje) {
+    return res.status(400).json({ success: false, error: 'Faltan datos: usuario, email o mensaje.' });
+  }
+
+  const solicitudes = await obtenerSolicitudes();
+  const newId = solicitudes.length > 0 ? Math.max(...solicitudes.map(s => s.id)) + 1 : 1;
+  const nuevaSolicitud = {
+    id: newId,
+    usuario,
+    email,
+    mensaje,
+    fecha: new Date().toISOString(),
+    estado: 'Pendiente', // Pendiente, Aprobada, Rechazada
+    respuestaAdmin: null
+  };
+
+  solicitudes.push(nuevaSolicitud);
+  await guardarSolicitudes(solicitudes);
+
+  res.status(201).json({ success: true, mensaje: 'Solicitud enviada exitosamente.', solicitud: nuevaSolicitud });
+});
+
+// Obtener las solicitudes de un usuario específico
+app.get('/solicitudes/mis_solicitudes', validarUserToken, async (req, res) => {
+  const usuario = req.currentUser;
+  const solicitudes = await obtenerSolicitudes();
+  const misSolicitudes = solicitudes.filter(s => s.usuario === usuario);
+  res.json(misSolicitudes);
+});
+
+
+// --- RUTAS PARA ADMINISTRADORES (admin.html) ---
+
+// Admin crea usuario (solo admin)
+app.post('/admin/usuarios', validarAdminToken, async (req, res) => {
+  const { usuario, password, email } = req.body; // Añadir email
+  if (!usuario || !password || !email) return res.status(400).json({ error: 'Faltan datos.' });
+
+  const usuarios = await obtenerUsuarios();
+  if (usuarios.find(u => u.usuario === usuario)) return res.status(400).json({ error: 'El usuario ya existe.' });
+  if (usuarios.find(u => u.email === email)) { // Verificar email único
+    return res.status(400).json({ success: false, error: 'El email ya está registrado.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  usuarios.push({ usuario, passwordHash, email }); // Guardar email
+  await guardarUsuarios(usuarios);
+
+  res.status(201).json({ success: true, mensaje: 'Usuario creado por admin.' });
+});
+
+// Admin elimina usuario (solo admin)
+app.delete('/admin/usuarios/:usuario', validarAdminToken, async (req, res) => { // Nueva ruta para admin
+  const usuarioAEliminar = req.params.usuario;
+  let usuarios = await obtenerUsuarios();
+  const admin = await obtenerAdmin();
+
+  if (admin && usuarioAEliminar === admin.usuario) {
+    return res.status(403).json({ error: 'No puedes eliminar la cuenta de administrador.' });
+  }
+
+  const antes = usuarios.length;
+  usuarios = usuarios.filter(u => u.usuario !== usuarioAEliminar);
+
+  if (usuarios.length === antes) {
+    return res.status(404).json({ error: 'Usuario no encontrado.' });
+  }
+
+  await guardarUsuarios(usuarios);
+
+  // Invalidar cualquier sesión activa para el usuario eliminado
+  if (activeUserSessions.has(usuarioAEliminar)) {
+    const tokenToDelete = activeUserSessions.get(usuarioAEliminar);
+    activeUserTokens.delete(tokenToDelete);
+    activeUserSessions.delete(usuarioAEliminar);
+    console.log(`Sesión activa de ${usuarioAEliminar} invalidada tras eliminación.`);
+  }
+
+  // Eliminar mensajes privados relacionados con el usuario eliminado
+  let mensajesPriv = await obtenerMensajesPrivados();
+  mensajesPriv = mensajesPriv.filter(m => m.de !== usuarioAEliminar && m.para !== usuarioAEliminar);
+  await guardarMensajesPrivados(mensajesPriv);
+
+  // Eliminar solicitudes de contacto relacionadas con el usuario eliminado
+  let solicitudes = await obtenerSolicitudes();
+  solicitudes = solicitudes.filter(s => s.usuario !== usuarioAEliminar);
+  await guardarSolicitudes(solicitudes);
+
+  res.json({ success: true, mensaje: `Usuario ${usuarioAEliminar} y sus datos relacionados eliminados.` });
+});
+
+// Admin obtiene lista de usuarios (solo admin)
+app.get('/admin/usuarios', validarAdminToken, async (req, res) => { // Nueva ruta para admin
+  const usuarios = await obtenerUsuarios();
+  const admin = await obtenerAdmin();
+  const allUsers = usuarios.map(u => ({ usuario: u.usuario, email: u.email })); // Incluir email
+  if (admin) {
+    allUsers.push({ usuario: admin.usuario, email: 'admin@example.com' }); // Email ficticio para admin
+  }
+  res.json(allUsers);
+});
+
+// Admin cambia contraseña de usuario (solo admin)
+app.put('/admin/usuarios/:usuario/password', validarAdminToken, async (req, res) => {
+  const usuarioAModificar = req.params.usuario;
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({ error: 'La nueva contraseña no puede estar vacía.' });
+  }
+
+  let usuarios = await obtenerUsuarios();
+  const admin = await obtenerAdmin();
+
+  // No permitir cambiar la contraseña del admin a través de esta ruta de usuario
+  if (admin && usuarioAModificar === admin.usuario) {
+    return res.status(403).json({ error: 'No puedes cambiar la contraseña del administrador desde aquí.' });
+  }
+
+  const userIndex = usuarios.findIndex(u => u.usuario === usuarioAModificar);
+
+  if (userIndex === -1) {
+    return res.status(404).json({ error: 'Usuario no encontrado.' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  usuarios[userIndex].passwordHash = passwordHash;
+  await guardarUsuarios(usuarios);
+
+  // Invalidar cualquier sesión activa para el usuario cuya contraseña fue cambiada
+  if (activeUserSessions.has(usuarioAModificar)) {
+    const tokenToInvalidate = activeUserSessions.get(usuarioAModificar);
+    activeUserTokens.delete(tokenToInvalidate);
+    activeUserSessions.delete(usuarioAModificar);
+    console.log(`Sesión activa de ${usuarioAModificar} invalidada tras cambio de contraseña.`);
+  }
+
+  res.json({ success: true, mensaje: `Contraseña del usuario ${usuarioAModificar} cambiada exitosamente.` });
+});
+
+
+// Admin elimina mensaje público (solo admin)
+app.delete('/admin/mensajes/:id', validarAdminToken, async (req, res) => { // Nueva ruta para admin
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID inválido.' });
+
+  let mensajes = await obtenerMensajesPublicos();
+  const antes = mensajes.length;
+  mensajes = mensajes.filter(m => m.id !== id);
+  if (mensajes.length === antes) return res.status(404).json({ error: 'Mensaje no encontrado.' });
+
+  mensajes = mensajes.map((msg, index) => ({ ...msg, id: index + 1 }));
+
+  await guardarMensajesPublicos(mensajes);
+  res.json({ success: true, mensaje: 'Mensaje eliminado y IDs reorganizados.' });
+});
+
+// Admin obtiene mensajes privados entre dos usuarios (solo admin)
+app.get('/admin/mensajes_privados', validarAdminToken, async (req, res) => {
+  const { user1, user2 } = req.query;
+  if (!user1 || !user2) {
+    return res.status(400).json({ error: 'Se requieren los parámetros user1 y user2.' });
+  }
+
+  const mensajesPriv = await obtenerMensajesPrivados();
+  const filtrados = mensajesPriv.filter(m =>
+    (m.de === user1 && m.para === user2) || (m.de === user2 && m.para === user1)
+  );
+  res.json(filtrados);
+});
+
+// Admin elimina chat completo entre dos usuarios (solo admin)
+app.delete('/admin/mensajes_privados/chat/:user1/:user2', validarAdminToken, async (req, res) => {
+  const { user1, user2 } = req.params;
+
+  let mensajesPriv = await obtenerMensajesPrivados();
+  const antes = mensajesPriv.length;
+
+  mensajesPriv = mensajesPriv.filter(m =>
+    !( (m.de === user1 && m.para === user2) || (m.de === user2 && m.para === user1) )
+  );
+
+  if (mensajesPriv.length === antes) {
+    return res.status(404).json({ error: 'No se encontraron mensajes entre estos usuarios para eliminar.' });
+  }
+
+  await guardarMensajesPrivados(mensajesPriv);
+  res.json({ success: true, mensaje: 'Conversación eliminada exitosamente por el administrador.' });
+});
+
+// --- RUTAS DE ADMINISTRADOR PARA SOLICITUDES (NUEVAS) ---
+
+// Obtener todas las solicitudes de contacto
+app.get('/admin/solicitudes', validarAdminToken, async (req, res) => {
+  const solicitudes = await obtenerSolicitudes();
+  res.json(solicitudes);
+});
+
+// Aprobar una solicitud de contacto
+app.put('/admin/solicitudes/:id/aprobar', validarAdminToken, async (req, res) => {
+  const id = Number(req.params.id);
+  const { respuestaAdmin } = req.body;
+
+  if (isNaN(id)) return res.status(400).json({ error: 'ID de solicitud inválido.' });
+  if (!respuestaAdmin) return res.status(400).json({ error: 'Se requiere un mensaje de respuesta para aprobar la solicitud.' });
+
+  let solicitudes = await obtenerSolicitudes();
+  const index = solicitudes.findIndex(s => s.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Solicitud no encontrada.' });
+  }
+
+  solicitudes[index].estado = 'Aprobada';
+  solicitudes[index].respuestaAdmin = respuestaAdmin;
+  solicitudes[index].fechaRespuesta = new Date().toISOString(); // Opcional: fecha de respuesta
+
+  await guardarSolicitudes(solicitudes);
+  res.json({ success: true, mensaje: 'Solicitud aprobada y respuesta enviada.' });
+});
+
+// Rechazar una solicitud de contacto
+app.put('/admin/solicitudes/:id/rechazar', validarAdminToken, async (req, res) => {
+  const id = Number(req.params.id);
+  const { respuestaAdmin } = req.body;
+
+  if (isNaN(id)) return res.status(400).json({ error: 'ID de solicitud inválido.' });
+  if (!respuestaAdmin) return res.status(400).json({ error: 'Se requiere un mensaje de respuesta para rechazar la solicitud.' });
+
+  let solicitudes = await obtenerSolicitudes();
+  const index = solicitudes.findIndex(s => s.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Solicitud no encontrada.' });
+  }
+
+  solicitudes[index].estado = 'Rechazada';
+  solicitudes[index].respuestaAdmin = respuestaAdmin;
+  solicitudes[index].fechaRespuesta = new Date().toISOString(); // Opcional: fecha de respuesta
+
+  await guardarSolicitudes(solicitudes);
+  res.json({ success: true, mensaje: 'Solicitud rechazada y respuesta enviada.' });
+});
+
+// Eliminar una solicitud de contacto (Admin)
+app.delete('/admin/solicitudes/:id', validarAdminToken, async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'ID de solicitud inválido.' });
+
+  let solicitudes = await obtenerSolicitudes();
+  const antes = solicitudes.length;
+  solicitudes = solicitudes.filter(s => s.id !== id);
+
+  if (solicitudes.length === antes) {
+    return res.status(404).json({ error: 'Solicitud no encontrada.' });
+  }
+
+  await guardarSolicitudes(solicitudes);
+  res.json({ success: true, mensaje: 'Solicitud eliminada exitosamente.' });
+});
+
+
+// Inicializar admin
+async function initAdmin() {
+  const adminExistente = await obtenerAdmin();
+  if (!adminExistente) {
+    const passHash = await bcrypt.hash('api#12345', 10);
+    await guardarAdmin({ usuario: 'admin', passwordHash: passHash });
+    console.log('Admin creado con usuario: admin y contraseña: api#12345');
+  } else {
+    console.log('Admin ya existe.');
+  }
+}
+
+initAdmin();
+
+// Servidor
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
