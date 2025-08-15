@@ -1,0 +1,52 @@
+# ===========================
+# Base: Node + Debian
+# ===========================
+FROM node:20-bullseye
+
+# Ejecutar como root
+USER root
+
+# Actualizar paquetes e instalar NGINX, bash y tini
+RUN apt-get update && \
+    apt-get install -y nginx bash tini && \
+    rm -rf /var/lib/apt/lists/*
+
+# Crear carpetas necesarias y dar permisos
+RUN mkdir -p \
+    /app/data \
+    /app/public \
+    /app/admin-template \
+    /var/log/nginx \
+    /var/run \
+    /var/cache/nginx/client_temp \
+    /var/cache/nginx/fastcgi_temp \
+    /var/cache/nginx/proxy_temp && \
+    chmod -R 777 /app/data /var/log/nginx /var/run /var/cache/nginx
+
+# Copiar configuración de NGINX
+COPY nginx-dary.conf /etc/nginx/nginx.conf
+
+# Definir directorio de trabajo
+WORKDIR /app
+
+# Copiar package.json y package-lock.json
+COPY package*.json ./
+
+# Instalar dependencias de producción
+RUN npm ci --only=production && npm cache clean --force
+
+# Copiar el resto del proyecto
+COPY . .
+
+# Copiar script de arranque
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Exponer puerto HTTP
+EXPOSE 80
+
+# Usar tini como entrypoint
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# Arrancar Node y NGINX mediante script
+CMD ["bash", "/app/start.sh"]

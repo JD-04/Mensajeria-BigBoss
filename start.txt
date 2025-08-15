@@ -1,0 +1,16 @@
+#!/bin/sh
+# start.sh - Arranca Node y NGINX correctamente
+
+# Arrancar Node en background
+node api.js &
+NODE_PID=$!
+
+# Arrancar NGINX en primer plano
+nginx -g 'daemon off;' &
+NGINX_PID=$!
+
+# Esperar a que cualquiera de los procesos termine
+wait -n $NODE_PID $NGINX_PID
+
+# Salir con el código de error del proceso que falló
+exit $?
