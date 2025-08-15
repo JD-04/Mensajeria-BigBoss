@@ -47,6 +47,11 @@ Credenciales iniciales del admin (se generan si no existe el archivo):
 ```
 Usuario: admin
 Password: api#12345
+
+Credenciales exclusivas para Adrian ( pueden contener mensajes utiles para la practica )
+
+Usuario: Adrian
+Password: Adrian#123
 ```
 
 ## Estructura del Repositorio
