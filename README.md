@@ -51,30 +51,19 @@ Password: api#12345
 
 ```
 Mensajeria-BigBoss/
-├─ public/
-│  ├─ index.html              # Cliente principal (basado en Dary-HTML-Client)
-│  ├─ images/                 # Recursos gráficos (logo, sprites intro)
-│  ├─ music/                  # Pistas musicales
-│  ├─ css/ (opcional)         # Si decides separar estilos
-│  └─ js/  (opcional)         # Si decides modularizar scripts
-├─ admin-template/
-│  ├─ admin.html              # Panel administrador
-│  ├─ admin.js                # Lógica del panel (gestión usuarios, solicitudes, mensajes, etc.)
-│  └─ styles.css (opcional)
-├─ data/                      # (Montado como volumen) Archivos JSON de persistencia:
-│  ├─ usuarios.txt
-│  ├─ admin.txt
-│  ├─ mensajes.txt
-│  ├─ mensajes_privados.txt
-│  └─ solicitudes.txt
-├─ API-Dary.js                # (Nombre sugerido) Servidor Express (el archivo que mostrabas)
-├─ package.json
-├─ package-lock.json
-├─ Dockerfile
-├─ nginx-dary.conf            # Configuración Nginx reverse proxy
-├─ start.sh                   # Arranque combinado Nginx + Node
-├─ README.md
-└─ (posible) .env.example     # Variables de entorno (SMTP, secretos)
+├─ Source/
+│  ├─ API-Dary.js             
+│  ├─ package.json             
+│  ├─ package-lock.json          
+│  ├─ public/
+│  │  └─ index.html             
+│  ├─ admin-template/
+│  │  └─ admin.html             
+│  └─ data/                    
+├─ nginx.conf                    
+├─ Dockerfile                    
+├─ start.sh                      
+└─  README.md
 ```
 
 ---
