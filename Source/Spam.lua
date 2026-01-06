@@ -10,7 +10,7 @@ local Services = ReplicatedStorage
 local PartyRF = Services:WaitForChild("PartyService"):WaitForChild("RF")
 local ProximityRF = Services:WaitForChild("ProximityService"):WaitForChild("RF")
 local start = os.clock()
-local duration = 10
+local duration = 3.5
 local conn
 conn = RunService.RenderStepped:Connect(function()
     if os.clock() - start >= duration then
